@@ -4,14 +4,14 @@ DTYPE=np.float
 ##这个函数是用来将标注的label转化成训练时的label
 ##通过tf.py_func的形式进行调用
 def bbox_overlaps(#水平的box
-    np.ndarray[DTYPE_t,ndim=2] boxes,
-    np.ndarray([DTYPE_t,ndim=2] query_boxes):
+     boxes,
+     query_boxes):
 
     N=boxes.shape[0]
     K=query_boxes.shape[0]
     overlaps=np.zeros((N,K),dtype=DTYPE)
     for k in range(K):
-        box_area=（
+        box_area=(
             (query_boxes[k,2]-query_boxes[k,0]+1)*
             (query_boxes[k,3]-query_boxes[k,1]+1)
         )
@@ -41,7 +41,23 @@ def anchor_target_layer(rpn_cls_score,gt_boxes,im_info):
     height,width=rpn_cls_score.shape[1:3]
     K=height*width
     A=_num_anchors
-    all_anchors=[] #(K*A,4)
+####################################################
+    #测试ctpn构造的anchor方法,然后实现自己的方法
+####################################################
+    shift_x = np.arange(0, width) * 16
+    shift_y = np.arange(0, height) * 16
+    shift_x, shift_y = np.meshgrid(shift_x, shift_y) # in W H order
+    # K is H x W
+    shifts = np.vstack((shift_x.ravel(), shift_y.ravel(),
+                        shift_x.ravel(), shift_y.ravel())).transpose()#生成feature-map和真实image上anchor之间的偏移量
+    all_anchors = (_anchors.reshape((1, A, 4)) +
+                   shifts.reshape((1, K, 4)).transpose((1, 0, 2)))#相当于复制宽高的维度，然后相加
+    all_anchors = all_anchors.reshape((K * A, 4))
+#######################################################
+    print(all_anchors)
+    
+                        
+    #all_anchors=[] #(K*A,4)
     total_anchors=int(K*A)
     #仅保留那些还在图像内部的anchor，超出图像的都删掉
     _allowed_border=0
@@ -59,18 +75,19 @@ def anchor_target_layer(rpn_cls_score,gt_boxes,im_info):
     overlaps=bbox_overlaps(
         np.ascontiguousarray(anchors,dtype=np.float),
         np.ascontiguousarray(gt_boxes,dtype=np.float))
+    print("overlaps",overlaps)
 #找到每个anchor对应的overlap最大的gt_box
     argmax_overlaps=overlaps.argmax(axis=1)
     max_overlaps=overlaps[np.arange(len(inds_inside)),argmax_overlaps]
 #找到每个gt_box对应的overlap最大的anchor
     gt_argmax_overlaps=overlaps.argmax(axis=0)
-    gt_max_overlaps=overlaps[gt_argmax_overlaps,np.arange(overlaps.shape[1]))
+    gt_max_overlaps=overlaps[gt_argmax_overlaps,np.arange(overlaps.shape[1])]
     #背景设置为0
     labels[max_overlaps<0.3]=0 
     #每个gt_box所对应的overlap最大的anchor设置为1
     labels[gt_argmax_overlaps]=1
     #每个anchor的最大overlap大于0.7设置为1
-    labels[max_voerlaps>0.7]=1
+    labels[max_overlaps>0.7]=1
 
 #对所有的label进行采样
     #对正样本进行采样，使其个数在128个一下
@@ -81,9 +98,9 @@ def anchor_target_layer(rpn_cls_score,gt_boxes,im_info):
         labels[disable_inds]=-1
     #对负样本进行采样，使其个数在256个以下
     bg_inds=np.where(labels==0)[0]
-    if len(bg_inds)>num_bg:
+    if len(bg_inds)>256:
         disable_inds=npr.choice(
-            bg_inds,size(len(bg_inds)-num_bg),replace=False)
+            bg_inds,size=(len(bg_inds)-256),replace=False)
         labels[disable_inds]=-1
 
     ##计算score label和边框回归的label
@@ -200,3 +217,21 @@ def clip_boxes(boxes, im_shape):
     # y2 < im_shape[0]
     boxes[:, 3::4] = np.maximum(np.minimum(boxes[:, 3::4], im_shape[0] - 1), 0)
     return boxes
+if __name__=='__main__':
+    rpn_cls_score=np.zeros((1,50,45,3))
+    im_info=np.array([800,720])
+    gt_boxes=np.array([[16,0,31,15,1]])
+    labels=anchor_target_layer(rpn_cls_score,gt_boxes,im_info)
+    print(labels.reshape(50,45))
+    labels=labels.reshape(50,45)
+    s=0
+    for i in range(50):
+        for j in range(45):
+            if labels[i,j]==0:
+                s=s+1
+    print(s)
+
+    gt_boxes=np.array([[5,0,18,18,1]])
+    labels=anchor_target_layer(rpn_cls_score,gt_boxes,im_info)
+    print(labels.reshape(50,45))
+#############还没有测试边框回归的计算,测试了score的计算
