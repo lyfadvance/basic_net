@@ -1,5 +1,5 @@
 import os
-import os.path s osp
+import os.path as osp
 import PIL
 import numpy as np
 import scipy.sparse
@@ -19,7 +19,14 @@ class imdb(object):
     @property
     def num_classes(self):
         return len(self._classes)
+    
+    @property
+    def classes(self):
+        return self._classes
 
+    @property
+    def image_index(self):
+        return self._image_index
     @property
     def roidb_handler(self):
         return self._roidb_handler
