@@ -1,5 +1,8 @@
 import numpy as np
-
+import tensorflow as tf
+from DatalabelToTrainlabel import DatalabelToTrainlabel_layer
+WEIGHT_DECAY=0.0005
+DEFAULT_PADDING='SAME'
 def layer(op):
     def layer_decorated(self, *args, **kwargs):
         # Automatically set a name if not provided.
@@ -89,7 +92,7 @@ class Network(object):
             init_weights = tf.truncated_normal_initializer(0.0, stddev=0.01)
             init_biases = tf.constant_initializer(0.0)
             kernel = self.make_var('weights', [k_h, k_w, c_i, c_o], init_weights, trainable, \
-                                   regularizer=self.l2_regularizer(cfg.TRAIN.WEIGHT_DECAY))
+                                   regularizer=self.l2_regularizer(WEIGHT_DECAY))
             if biased:
                 biases = self.make_var('biases', [c_o], init_biases, trainable)
                 conv = convolve(input, kernel)
@@ -112,8 +115,8 @@ class Network(object):
 
             init_weights=tf.truncated_normal_initializer(0.0,stddev=0.01)
             init_biases=tf.constant_initializer(0.0)
-            kernel=self.make_var('weights',[d_i,d_o],init_weights,trainable,regularizer=self.l2_regualrizer(cfg.TRAIN.WEIGHT_DECAY))
-            biases=self.maker_var('biases',[d_o],init_biases,trainable)
+            kernel=self.make_var('weights',[d_i,d_o],init_weights,trainable,regularizer=self.l2_regularizer(WEIGHT_DECAY))
+            biases=self.make_var('biases',[d_o],init_biases,trainable)
 
             _O=tf.matmul(input,kernel)+biases
             return tf.reshape(_O,[N,H,W,int(d_o)])
@@ -140,10 +143,12 @@ class Network(object):
                               padding=padding,
                               name=name)
 
-
+    @layer
     def DatalabelToTrainlabel_layer(self,input,name):
         with tf.variable_scope(name) as scope:
-            rpn_labels=tf.py_func(DatalabelToTrainlabel,[input[0],input[1],input[2]],[tf.float32,tf.foat32,tf.float32])
+            #print('---------------------------------------get')
+            rpn_labels=tf.py_func(DatalabelToTrainlabel_layer,[input[0],input[1],input[2]],tf.float32)#调用函数，输入，输出格式
+            #print('------------------------------------------get2')
             rpn_labels=tf.convert_to_tensor(tf.cast(rpn_labels,tf.int32),name='rpn_labels')
             return rpn_labels
     '''

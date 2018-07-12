@@ -54,19 +54,23 @@ def DatalabelToTrainlabel_layer(rpn_cls_score,gt_boxes,im_info):
                    shifts.reshape((1, K, 4)).transpose((1, 0, 2)))#相当于复制宽高的维度，然后相加
     all_anchors = all_anchors.reshape((K * A, 4))
 #######################################################
-    print(all_anchors)
+    #print(all_anchors)
     
                         
     #all_anchors=[] #(K*A,4)
     total_anchors=int(K*A)
     #仅保留那些还在图像内部的anchor，超出图像的都删掉
     _allowed_border=0
+    #因为一批中只有一张图像
+    im_info=im_info[0]
+    #print("________________________________________label转换执行结束")
     inds_inside = np.where(
         (all_anchors[:, 0] >= -_allowed_border) &
         (all_anchors[:, 1] >= -_allowed_border) &
         (all_anchors[:, 2] < im_info[1] + _allowed_border) &  # width
         (all_anchors[:, 3] < im_info[0] + _allowed_border)    # height
     )[0]
+    
     anchors=all_anchors[inds_inside,:]
     #计算label
     labels=np.empty((len(inds_inside),),dtype=np.float32)
@@ -75,7 +79,7 @@ def DatalabelToTrainlabel_layer(rpn_cls_score,gt_boxes,im_info):
     overlaps=bbox_overlaps(
         np.ascontiguousarray(anchors,dtype=np.float),
         np.ascontiguousarray(gt_boxes,dtype=np.float))
-    print("overlaps",overlaps)
+    #print("overlaps",overlaps)
 #找到每个anchor对应的overlap最大的gt_box
     argmax_overlaps=overlaps.argmax(axis=1)
     max_overlaps=overlaps[np.arange(len(inds_inside)),argmax_overlaps]
@@ -219,7 +223,7 @@ def clip_boxes(boxes, im_shape):
     return boxes
 if __name__=='__main__':
     rpn_cls_score=np.zeros((1,50,45,3))
-    im_info=np.array([800,720])
+    im_info=np.array([[800,720]])
     gt_boxes=np.array([[16,0,31,15,1]])
     labels=anchor_target_layer(rpn_cls_score,gt_boxes,im_info)
     print(labels.reshape(50,45))

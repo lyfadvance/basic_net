@@ -106,6 +106,10 @@ class imdb_load(imdb):
         self._cur+=1
         
         return db_inds
+    def forward(self):
+        """Get blobs and copy them into this layer's top blob vector."""
+        blobs = self._get_next_minibatch()
+        return blobs
     def _get_next_minibatch(self):
         db_inds=self._get_next_minibatch_inds()
         minibatch_db=[self._roidb[i] for i in db_inds]

@@ -1,12 +1,19 @@
 import tensorflow as tf
 import numpy as np
-from .mynetwork import Network
-
+from mynetwork import Network
+import os
+import os.path as osp
+from imdb_load import imdb_load
+from timer import Timer
+LEARNING_RATE=0.00001
+DISPLAY=10
+ROOT_DIR=osp.abspath(osp.join(osp.dirname(__file__)))
+DATA_DIR=osp.abspath(osp.join(ROOT_DIR))
 class VGGnet_train(Network):
     def __init__(self, trainable=True):
         self.inputs = []
         self.data = tf.placeholder(tf.float32, shape=[None, None, None, 3], name='data')
-        self.im_info = tf.placeholder(tf.float32, shape=[None, 3], name='im_info')
+        self.im_info = tf.placeholder(tf.float32, shape=[None, 2], name='im_info')
         self.gt_boxes = tf.placeholder(tf.float32, shape=[None, 5], name='gt_boxes')
         self.layers = dict({'data':self.data, 'im_info':self.im_info, 'gt_boxes':self.gt_boxes})
         self.trainable = trainable
@@ -15,9 +22,9 @@ class VGGnet_train(Network):
     def setup(self):
 
         # n_classes = 21
-        n_classes = cfg.NCLASSES
+        n_classes = 2
         # anchor_scales = [8, 16, 32]
-        anchor_scales = cfg.ANCHOR_SCALES
+        #anchor_scales = cfg.ANCHOR_SCALES
         _feat_stride = [16, ]
 
         (self.feed('data')
@@ -50,19 +57,22 @@ class VGGnet_train(Network):
         # output: rpn_labels(HxWxA, 2) rpn_bbox_targets(HxWxA, 4) rpn_bbox_inside_weights rpn_bbox_outside_weights
         # 给每个anchor上标签，并计算真值（也是delta的形式），以及内部权重和外部权重
         (self.feed('rpn_cls_score', 'gt_boxes', 'im_info')
-             .DatalabelToTrainlabel_layer(name = 'rpn-data' ))
+             .DatalabelToTrainlabel_layer(name = 'rpn-data'))
 
         # shape is (1, H, W, Ax2) -> (1, H, WxA, 2)
         # 给之前得到的score进行softmax，得到0-1之间的得分
         (self.feed('rpn_cls_score')
              .spatial_reshape_layer(2, name = 'rpn_cls_score_reshape')
              )
+###################################################
+#计算loss
+###################################################
     def build_loss(self):
         rpn_cls_score=tf.reshape(self.get_output('rpn_cls_score_reshape'),[-1,2])
         rpn_label=tf.reshape(self.get_output('rpn-data')[0],[-1])
         ##收集不是dont care的label
         rpn_keep=tf.where(tf.not_equal(rpn_label,-1))
-        rpn_cls_socre=tf.gather(rpn_cls_socre,rpn_keep)
+        rpn_cls_score=tf.gather(rpn_cls_score,rpn_keep)
         rpn_label=tf.gather(rpn_label,rpn_keep)
         rpn_cross_entropy_n = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=rpn_label,logits=rpn_cls_score)
         rpn_cross_entropy=tf.reduce_mean(rpn_cross_entropy_n)
@@ -72,3 +82,88 @@ class VGGnet_train(Network):
         total_loss=tf.add_n(regularization_losses)+model_loss
 
         return total_loss,model_loss,rpn_cross_entropy
+
+#########################################################
+#训练网络
+#########################################################
+    def snapshot(self,sess,iter):
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
+            filename=('iter_{:d}'.format(iter+1)+'.ckpt')
+            filename=os.path.join(self.output_dir,filename)
+            self.saver.save(sess,filename)
+            print('Wrote snapshot to :{:s}'.format(filename))
+
+    def train(self,imdb,output_dir,log_dir,pretrained_model=None,max_iters=40000,restore=False):
+        config=tf.ConfigProto(allow_soft_placement=True)
+        config.gpu_options.allocator_type='BFC'
+        config.gpu_options.per_process_gpu_memory_fraction=0.75
+        #####################
+        #保存模型和训练数据
+        ###############
+        self.output_dir=output_dir
+        self.log_dir=log_dir
+        self.pretrained_model=pretrained_model
+
+
+        self.saver = tf.train.Saver(max_to_keep=100,write_version=tf.train.SaverDef.V2)
+        self.writer = tf.summary.FileWriter(logdir=log_dir,
+                                             graph=tf.get_default_graph(),
+                                             flush_secs=5)
+        #开始会话
+        with tf.Session(config=config) as sess:
+            total_loss,model_loss,rpn_cross_entropy=self.build_loss()
+            tf.summary.scalar('rpn_cls_loss',rpn_cross_entropy)
+            tf.summary.scalar('model_loss',model_loss)
+            tf.summary.scalar('total_loss',total_loss)
+            summary_op=tf.summary.merge_all()
+
+            lr=tf.Variable(LEARNING_RATE,trainable=False)
+            opt=tf.train.AdamOptimizer(LEARNING_RATE)
+            
+            global_step=tf.Variable(0,trainable=False)
+            train_op=opt.minimize(total_loss,global_step=global_step)
+
+            sess.run(tf.global_variables_initializer())
+
+            #load VGG16
+            if self.pretrained_model is not None and not restore:
+                try:
+                    print(('loading pretrained model''weights from {:s}').format(self.pretrained_model))
+                    self.load(self.pretrained_model,sess,True)
+                except:
+                    raise 'Check your pretrained model {:s}'.format(self.pretrained_model)
+            timer=Timer()
+            for iter in range(0,max_iters):
+                timer.tic()
+                #源代码中学习率调整
+
+                blobs=imdb.forward()
+                #print(blobs)
+                feed_dict={
+                    self.data:blobs['data'],
+                    self.im_info:blobs['im_info'],
+                    self.gt_boxes:blobs['gt_boxes'],
+                }
+
+                fetch_list=[total_loss,model_loss,rpn_cross_entropy,summary_op,train_op]
+                total_loss_val,model_loss_val,rpn_loss_cls_val,summary_str,_=sess.run(fetches=fetch_list,feed_dict=feed_dict)
+                self.writer.add_summary(summary=summary_str,global_step=global_step.eval())
+                _diff_time=timer.toc(average=False)
+
+                if (iter) % (DISPLAY) == 0:
+                    print('iter: %d / %d, total loss: %.4f, model loss: %.4f, rpn_loss_cls: %.4f, lr: %f'%\
+                        (iter, max_iters, total_loss_val,model_loss_val,rpn_loss_cls_val,lr.eval()))
+                    print('speed: {:.3f}s / iter'.format(_diff_time))
+                if (iter) %1 ==0:
+                    last_snap_shot_iter=iter
+                    self.snapshot(sess,iter)
+
+if __name__=='__main__':
+    net=VGGnet_train()
+    imdb=imdb_load()
+    print("数据库载入成功")
+    output_dir=os.path.join(DATA_DIR,'snapshot')
+    log_dir=os.path.join(DATA_DIR,'log')
+    pretrained_model='VGG_imagenet.npy'
+    net.train(imdb,output_dir,log_dir,pretrained_model)
