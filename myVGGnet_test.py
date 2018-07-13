@@ -97,7 +97,7 @@ class VGGnet_test(Network):
             print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
             print(('Demo for {:s}'.format(im_name)))
             scores=self.test_single(sess,im_name)
-            self.show_scores(scores)
+            self.show_scores(scores,im_name)
     ##测试单个图片
     def test_single(self,sess,im_name):
         img=cv2.imread(im_name)
@@ -112,10 +112,12 @@ class VGGnet_test(Network):
         rois=rois[0]
         scores=rois
         return scores
-    def show_scores(self,scores):
+    def show_scores(self,scores,im_name):
         scores=scores*255
         image=Image.fromarray(scores.astype(np.uint8))
-        image.save('scores.jpg')
+        basename=os.path.basename(im_name)
+        basename=basename.split('.')
+        image.save(basename[0]+'_result.jpg')
             
 if __name__=='__main__':
     net=VGGnet_test()
