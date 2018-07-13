@@ -34,7 +34,7 @@ def bbox_overlaps(#水平的box
                     overlaps[n,k]=iw*ih/ua
     return overlaps
 def DatalabelToTrainlabel_layer(rpn_cls_score,gt_boxes,im_info):
-    _anchors=np.array([[0,0,15,15]],np.int32)
+p   _anchors=np.array([[0,0,15,15]],np.int32)
     _num_anchors=_anchors.shape[0]
     #根据特征图构造所有的anchor
     #anchor的顺序是按照从上到下，从左到右一次展开

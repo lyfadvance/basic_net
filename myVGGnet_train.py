@@ -6,7 +6,7 @@ import os.path as osp
 from imdb_load import imdb_load
 from timer import Timer
 LEARNING_RATE=0.00001
-DISPLAY=10
+DISPLAY=1
 ROOT_DIR=osp.abspath(osp.join(osp.dirname(__file__)))
 DATA_DIR=osp.abspath(osp.join(ROOT_DIR))
 class VGGnet_train(Network):
@@ -50,7 +50,7 @@ class VGGnet_train(Network):
              .conv(3,3,512,1,1,name='rpn_conv/3x3'))
 
         #(self.feed('rpn_conv/3x3').Bilstm(512,128,512,name='lstm_o'))
-        (self.feed('rpn_conv/3x3').regress(512,10 * 4, name='rpn_cls_score'))
+        (self.feed('rpn_conv/3x3').regress(512,1 * 2, name='rpn_cls_score'))
         #(self.feed('lstm_o').lstm_fc(512,len(anchor_scales) * 10 * 2,name='rpn_cls_score'))
 
         # generating training labels on the fly
@@ -87,12 +87,13 @@ class VGGnet_train(Network):
 #训练网络
 #########################################################
     def snapshot(self,sess,iter):
+        #print('_______________________get')
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
-            filename=('iter_{:d}'.format(iter+1)+'.ckpt')
-            filename=os.path.join(self.output_dir,filename)
-            self.saver.save(sess,filename)
-            print('Wrote snapshot to :{:s}'.format(filename))
+        filename=('iter_{:d}'.format(iter+1)+'.ckpt')
+        filename=os.path.join(self.output_dir,filename)
+        self.saver.save(sess,filename)
+        print('Wrote snapshot to :{:s}'.format(filename))
 
     def train(self,imdb,output_dir,log_dir,pretrained_model=None,max_iters=40000,restore=False):
         config=tf.ConfigProto(allow_soft_placement=True)
@@ -164,6 +165,7 @@ if __name__=='__main__':
     imdb=imdb_load()
     print("数据库载入成功")
     output_dir=os.path.join(DATA_DIR,'snapshot')
+    print("_______________________",output_dir)
     log_dir=os.path.join(DATA_DIR,'log')
     pretrained_model='VGG_imagenet.npy'
     net.train(imdb,output_dir,log_dir,pretrained_model)

@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 from DatalabelToTrainlabel import DatalabelToTrainlabel_layer
+from TrainlabelToDatalabel import TrainlabelToDatalabel_layer
 WEIGHT_DECAY=0.0005
 DEFAULT_PADDING='SAME'
 def layer(op):
@@ -151,6 +152,13 @@ class Network(object):
             #print('------------------------------------------get2')
             rpn_labels=tf.convert_to_tensor(tf.cast(rpn_labels,tf.int32),name='rpn_labels')
             return rpn_labels
+    @layer
+    def TrainlabelToDatalabel_layer(self,input,name):
+        with tf.variable_scope(name) as scope:
+            rpn_rois=tf.py_func(TrainlabelToDatalabel_layer,[input[0],input[1]],tf.float32)
+            rpn_rois=tf.convert_to_tensor(rpn_rois,name='rpn_rois')
+            self.layers['rpn_rois']=rpn_rois
+            return rpn_rois
     '''
     @layer
     def anchor_target_layer(self, input, _feat_stride, anchor_scales, name):
@@ -193,6 +201,12 @@ class Network(object):
     def dropout(self, input, keep_prob, name):
         return tf.nn.dropout(input, keep_prob, name=name)
     '''
+    @layer
+    def spatial_softmax(self, input, name):
+        input_shape = tf.shape(input)
+        # d = input.get_shape()[-1]
+        return tf.reshape(tf.nn.softmax(tf.reshape(input, [-1, input_shape[3]])),
+                          [-1, input_shape[1], input_shape[2], input_shape[3]], name=name)
     @layer
     def spatial_reshape_layer(self, input, d, name):
         input_shape = tf.shape(input)
