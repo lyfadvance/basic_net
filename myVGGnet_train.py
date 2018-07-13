@@ -126,7 +126,7 @@ class VGGnet_train(Network):
             train_op=opt.minimize(total_loss,global_step=global_step)
 
             sess.run(tf.global_variables_initializer())
-
+            restore_iter=0
             #load VGG16
             if self.pretrained_model is not None and not restore:
                 try:
@@ -134,8 +134,21 @@ class VGGnet_train(Network):
                     self.load(self.pretrained_model,sess,True)
                 except:
                     raise 'Check your pretrained model {:s}'.format(self.pretrained_model)
+            if restore:
+                try:
+                    #print(self.output_dir)
+                    ckpt=tf.train.get_checkpoint_state(self.output_dir)
+                    print('Restoring from {}...'.format(ckpt.model_checkpoint_path),end=' ')
+                    self.saver.restore(sess,ckpt.model_checkpoint_path)
+                    #获取不带后缀的文件名
+                    stem = os.path.splitext(os.path.basename(ckpt.model_checkpoint_path))[0]
+                    restore_iter=int(stem.split('_')[-1])
+                    sess.run(global_step.assign(restore_iter))
+                    print('done')
+                except:
+                    raise 'Check your pretrained {:s}'.format(ckpt.model_checkpoint_path)
             timer=Timer()
-            for iter in range(0,max_iters):
+            for iter in range(restore_iter,max_iters):
                 timer.tic()
                 #源代码中学习率调整
 
@@ -156,7 +169,7 @@ class VGGnet_train(Network):
                     print('iter: %d / %d, total loss: %.4f, model loss: %.4f, rpn_loss_cls: %.4f, lr: %f'%\
                         (iter, max_iters, total_loss_val,model_loss_val,rpn_loss_cls_val,lr.eval()))
                     print('speed: {:.3f}s / iter'.format(_diff_time))
-                if (iter) %1 ==0:
+                if (iter+1) %1 ==0:
                     last_snap_shot_iter=iter
                     self.snapshot(sess,iter)
 
@@ -168,4 +181,4 @@ if __name__=='__main__':
     print("_______________________",output_dir)
     log_dir=os.path.join(DATA_DIR,'log')
     pretrained_model='VGG_imagenet.npy'
-    net.train(imdb,output_dir,log_dir,pretrained_model)
+    net.train(imdb,output_dir,log_dir,pretrained_model,restore=True)
