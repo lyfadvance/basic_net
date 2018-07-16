@@ -107,7 +107,7 @@ class VGGnet_train(Network):
         self.pretrained_model=pretrained_model
 
 
-        self.saver = tf.train.Saver(max_to_keep=100,write_version=tf.train.SaverDef.V2)
+        self.saver = tf.train.Saver(max_to_keep=10,write_version=tf.train.SaverDef.V2)
         self.writer = tf.summary.FileWriter(logdir=log_dir,
                                              graph=tf.get_default_graph(),
                                              flush_secs=5)
@@ -169,7 +169,7 @@ class VGGnet_train(Network):
                     print('iter: %d / %d, total loss: %.4f, model loss: %.4f, rpn_loss_cls: %.4f, lr: %f'%\
                         (iter, max_iters, total_loss_val,model_loss_val,rpn_loss_cls_val,lr.eval()))
                     print('speed: {:.3f}s / iter'.format(_diff_time))
-                if (iter+1) %1 ==0:
+                if (iter+1) %100 ==0:
                     last_snap_shot_iter=iter
                     self.snapshot(sess,iter)
 

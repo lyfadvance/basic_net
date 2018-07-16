@@ -93,11 +93,14 @@ class VGGnet_test(Network):
     def test(self):
         sess=self.load_model()
         im_names=self.load_image()
-        for im_name in im_names[0:1]:
+        for im_name in im_names:
             print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
             print(('Demo for {:s}'.format(im_name)))
-            scores=self.test_single(sess,im_name)
-            self.show_scores(scores,im_name)
+            scores,rpn_conv,conv1_2,conv1_1,height,width=self.test_single(sess,im_name)
+            self.show_scores(scores,im_name,height,width)
+            self.show_feature_map(rpn_conv[0],im_name,'rpnconv')
+            self.show_feature_map(conv1_2[0],im_name,'conv1_2')
+            self.show_feature_map(conv1_1[0],im_name,'conv1_1')
     ##测试单个图片
     def test_single(self,sess,im_name):
         img=cv2.imread(im_name)
@@ -108,16 +111,31 @@ class VGGnet_test(Network):
 
         feed_dict={self.data:blobs['data'],self.im_info:blobs['im_info']}
         
-        rois=sess.run([net.get_output('rois')],feed_dict=feed_dict)
-        rois=rois[0]
+        rois,rpn_conv,conv1_2,conv1_1=sess.run([net.get_output('rois'),net.get_output('rpn_conv/3x3'),net.get_output('conv1_2'),net.get_output('conv1_1')],feed_dict=feed_dict)
+        #rois=rois[0]
         scores=rois
-        return scores
-    def show_scores(self,scores,im_name):
+        return scores,rpn_conv,conv1_2,conv1_1,img.shape[0],img.shape[1]
+    def show_feature_map(self,feature_map,im_name,feature_name):
+        feature_map=feature_map*255
+        height,width,depth=feature_map.shape
+        print(depth)
+        for i in range(depth):
+            image=Image.fromarray(feature_map[:,:,i].astype(np.uint8))
+            basename=os.path.basename(im_name)
+            basename=basename.split('.')
+            if not os.path.exists(os.path.join('results',basename[0])):
+                os.makedirs(os.path.join('results',basename[0]))
+            image.save(os.path.join('results',basename[0],feature_name+'_'+str(i)+'.jpg'))
+    def show_scores(self,scores,im_name,height,width):
         scores=scores*255
+        print(height,width)
         image=Image.fromarray(scores.astype(np.uint8))
+        image=image.resize((width,height))
         basename=os.path.basename(im_name)
         basename=basename.split('.')
-        image.save(basename[0]+'_result.jpg')
+        if  not os.path.exists('results'):
+            os.makedirs('results')
+        image.save(os.path.join('results',basename[0]+'_result.jpg'))
             
 if __name__=='__main__':
     net=VGGnet_test()
