@@ -99,20 +99,22 @@ class VGGnet_train(Network):
         config=tf.ConfigProto(allow_soft_placement=True)
         config.gpu_options.allocator_type='BFC'
         config.gpu_options.per_process_gpu_memory_fraction=0.75
-        #####################
-        #保存模型和训练数据
-        ###############
-        self.output_dir=output_dir
-        self.log_dir=log_dir
-        self.pretrained_model=pretrained_model
-
-
-        self.saver = tf.train.Saver(max_to_keep=10,write_version=tf.train.SaverDef.V2)
-        self.writer = tf.summary.FileWriter(logdir=log_dir,
-                                             graph=tf.get_default_graph(),
-                                             flush_secs=5)
+        
         #开始会话
         with tf.Session(config=config) as sess:
+            #####################
+            #保存模型和训练数据
+            ###############
+            self.output_dir=output_dir
+            self.log_dir=log_dir
+            self.pretrained_model=pretrained_model
+
+
+            self.saver = tf.train.Saver(max_to_keep=10,write_version=tf.train.SaverDef.V2)
+            self.writer = tf.summary.FileWriter(logdir=log_dir,
+                                                 graph=tf.get_default_graph(),
+                                                 flush_secs=5)
+
             total_loss,model_loss,rpn_cross_entropy=self.build_loss()
             tf.summary.scalar('rpn_cls_loss',rpn_cross_entropy)
             tf.summary.scalar('model_loss',model_loss)
