@@ -45,10 +45,22 @@ class VGGnet_train(Network):
              .conv(3, 3, 512, 1, 1, name='conv5_1')
              .conv(3, 3, 512, 1, 1, name='conv5_2')
              .conv(3, 3, 512, 1, 1, name='conv5_3'))
+        #abs_conv
+        (self.feed('data')
+             .abs_conv(3,3,64,1,1,name='abs_conv1_1')
+             .max_pool(4,4,4,4,padding='VALID',name='abs_pool1')
+             .abs_conv(3,3,64,1,1,name='abs_conv2_1')
+             .max_pool(4,4,4,4,padding='VALID',name='abs_pool2')
+        #concat abs_conv and conv
+        (self.feed('conv5_3','abs_pool2')
+             .concat(2,'concat')
         #========= RPN ============
+        '''
         (self.feed('conv5_3')
              .conv(3,3,512,1,1,name='rpn_conv/3x3'))
-
+        '''
+        (self.feed('concat')
+             .conv(3,3,512,1,1,name='rpn_conv/3x3'))
         #(self.feed('rpn_conv/3x3').Bilstm(512,128,512,name='lstm_o'))
         (self.feed('rpn_conv/3x3').regress(512,1 * 2, name='rpn_cls_score'))
         #(self.feed('lstm_o').lstm_fc(512,len(anchor_scales) * 10 * 2,name='rpn_cls_score'))

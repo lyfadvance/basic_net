@@ -106,6 +106,27 @@ class Network(object):
                 if relu:
                     return tf.nn.relu(conv, name=scope.name)
                 return conv
+    @layer
+    def abs_conv(self,input,k_h,k_w,c_o,s_h,s_w,name,biased=True,relu=True,padding=DEFAULT_PADDING,trainable=True):
+        self.validate_padding(padding)
+        convolve=lambda i,k:tf.nn.conv2d(i,k,[1,s_h,s_w,1],padding=padding)
+        with tf.variable_scope(name) as scope:
+            init_weights=tf.truncated_normal_initializer(0.0,stddev=0.01)
+            init_biases=tf.constant_initializer(0.0)
+            kernel=self.maker_var('weights',[k_h,k_w,c_i,c_o],init_weights,trainable,\
+                                    regularizer=self.l2_regularizer(WEIGHT_DECAY))
+            if biased:
+                biases=self.make_var('biases',[c_o],init_biases,trainable)
+                conv=convolve(input,kernel)
+                if relu:
+                    bias=tf.nn.abs(tf.nn.bias_add(conv,biases)
+                    return 1-tf.nn.relu(bias,name=scope.name)
+                return tf.nn.abs(tf.nn.bias_add(conv,biases,name=scope.name)
+            else:
+                print("-------------------error")
+    @layer
+    def concat(self, inputs, axis, name):
+        return tf.concat(concat_dim=axis, values=inputs, name=name)
 
     @layer
     def regress(self,input,d_i,d_o,name,trainable=True):
