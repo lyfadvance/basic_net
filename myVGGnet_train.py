@@ -6,7 +6,7 @@ import os.path as osp
 from imdb_load import imdb_load
 from timer import Timer
 LEARNING_RATE=0.00001
-DISPLAY=1
+DISPLAY=10
 ROOT_DIR=osp.abspath(osp.join(osp.dirname(__file__)))
 DATA_DIR=osp.abspath(osp.join(ROOT_DIR))
 class VGGnet_train(Network):
@@ -50,16 +50,16 @@ class VGGnet_train(Network):
              .abs_conv(3,3,64,1,1,name='abs_conv1_1')
              .max_pool(4,4,4,4,padding='VALID',name='abs_pool1')
              .abs_conv(3,3,64,1,1,name='abs_conv2_1')
-             .max_pool(4,4,4,4,padding='VALID',name='abs_pool2')
+             .max_pool(4,4,4,4,padding='VALID',name='abs_pool2'))
         #concat abs_conv and conv
         (self.feed('conv5_3','abs_pool2')
-             .concat(2,'concat')
+             .concat(axis=3,name='myconcat'))
         #========= RPN ============
         '''
         (self.feed('conv5_3')
              .conv(3,3,512,1,1,name='rpn_conv/3x3'))
         '''
-        (self.feed('concat')
+        (self.feed('myconcat')
              .conv(3,3,512,1,1,name='rpn_conv/3x3'))
         #(self.feed('rpn_conv/3x3').Bilstm(512,128,512,name='lstm_o'))
         (self.feed('rpn_conv/3x3').regress(512,1 * 2, name='rpn_cls_score'))
@@ -111,20 +111,21 @@ class VGGnet_train(Network):
         config=tf.ConfigProto(allow_soft_placement=True)
         config.gpu_options.allocator_type='BFC'
         config.gpu_options.per_process_gpu_memory_fraction=0.75
-        #####################
-        #保存模型和训练数据
-        ###############
-        self.output_dir=output_dir
-        self.log_dir=log_dir
-        self.pretrained_model=pretrained_model
-
-
-        self.saver = tf.train.Saver(max_to_keep=10,write_version=tf.train.SaverDef.V2)
-        self.writer = tf.summary.FileWriter(logdir=log_dir,
-                                             graph=tf.get_default_graph(),
-                                             flush_secs=5)
-        #开始会话
+        
         with tf.Session(config=config) as sess:
+            #####################
+            #保存模型和训练数据
+            ###############
+            self.output_dir=output_dir
+            self.log_dir=log_dir
+            self.pretrained_model=pretrained_model
+
+            #self.writer必须在创建会话后创建
+            self.saver = tf.train.Saver(max_to_keep=10,write_version=tf.train.SaverDef.V2)
+            self.writer = tf.summary.FileWriter(logdir=log_dir,
+                                                 graph=tf.get_default_graph(),
+                                                 flush_secs=5)
+            #开始会话
             total_loss,model_loss,rpn_cross_entropy=self.build_loss()
             tf.summary.scalar('rpn_cls_loss',rpn_cross_entropy)
             tf.summary.scalar('model_loss',model_loss)
@@ -193,4 +194,4 @@ if __name__=='__main__':
     print("_______________________",output_dir)
     log_dir=os.path.join(DATA_DIR,'log')
     pretrained_model='VGG_imagenet.npy'
-    net.train(imdb,output_dir,log_dir,pretrained_model,restore=True)
+    net.train(imdb,output_dir,log_dir,pretrained_model,restore=False)
