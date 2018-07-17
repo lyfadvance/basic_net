@@ -6,7 +6,7 @@ import os.path as osp
 from imdb_load import imdb_load
 from timer import Timer
 LEARNING_RATE=0.00001
-DISPLAY=10
+DISPLAY=100
 ROOT_DIR=osp.abspath(osp.join(osp.dirname(__file__)))
 DATA_DIR=osp.abspath(osp.join(ROOT_DIR))
 class VGGnet_train(Network):
@@ -48,8 +48,10 @@ class VGGnet_train(Network):
         #abs_conv
         (self.feed('data')
              .abs_conv(3,3,64,1,1,name='abs_conv1_1')
+             .abs_conv(3,3,64,1,1,name='abs_conv1_2')
              .max_pool(4,4,4,4,padding='VALID',name='abs_pool1')
              .abs_conv(3,3,64,1,1,name='abs_conv2_1')
+             .abs_conv(3,3,64,1,1,name='abs_conv2_2')
              .max_pool(4,4,4,4,padding='VALID',name='abs_pool2'))
         #concat abs_conv and conv
         (self.feed('conv5_3','abs_pool2')
@@ -182,7 +184,7 @@ class VGGnet_train(Network):
                     print('iter: %d / %d, total loss: %.4f, model loss: %.4f, rpn_loss_cls: %.4f, lr: %f'%\
                         (iter, max_iters, total_loss_val,model_loss_val,rpn_loss_cls_val,lr.eval()))
                     print('speed: {:.3f}s / iter'.format(_diff_time))
-                if (iter+1) %100 ==0:
+                if (iter+1) %1000 ==0:
                     last_snap_shot_iter=iter
                     self.snapshot(sess,iter)
 
