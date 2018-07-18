@@ -5,7 +5,7 @@ import os
 import os.path as osp
 from imdb_load import imdb_load
 from timer import Timer
-LEARNING_RATE=0.00001
+LEARNING_RATE=0.0001
 DISPLAY=100
 ROOT_DIR=osp.abspath(osp.join(osp.dirname(__file__)))
 DATA_DIR=osp.abspath(osp.join(ROOT_DIR))
@@ -49,12 +49,17 @@ class VGGnet_train(Network):
         (self.feed('data')
              .abs_conv(3,3,64,1,1,name='abs_conv1_1')
              .abs_conv(3,3,64,1,1,name='abs_conv1_2')
-             .max_pool(4,4,4,4,padding='VALID',name='abs_pool1')
-             .abs_conv(3,3,64,1,1,name='abs_conv2_1')
-             .abs_conv(3,3,64,1,1,name='abs_conv2_2')
-             .max_pool(4,4,4,4,padding='VALID',name='abs_pool2'))
+             .conv(3,3,64,1,1,name='test_conv10_1')
+             .conv(3,3,64,1,1,name='test_conv10_2')
+             .max_pool(2,2,2,2,padding='VALID',name='abs_pool1')
+             .conv(3,3,128,1,1,name='test_conv11_1')
+             .conv(3,3,128,1,1,name='test_conv11_2')
+             .max_pool(2,2,2,2,padding='VALID',name='abs_pool2')
+             .conv(3,3,512,1,1,name='test_conv12_1')
+             .conv(3,3,512,1,1,name='test_conv12_2')
+             .max_pool(4,4,4,4,padding='VALID',name='abs_pool3'))
         #concat abs_conv and conv
-        (self.feed('conv5_3','abs_pool2')
+        (self.feed('conv5_3','abs_pool3')
              .concat(axis=3,name='myconcat'))
         #========= RPN ============
         '''
@@ -184,7 +189,7 @@ class VGGnet_train(Network):
                     print('iter: %d / %d, total loss: %.4f, model loss: %.4f, rpn_loss_cls: %.4f, lr: %f'%\
                         (iter, max_iters, total_loss_val,model_loss_val,rpn_loss_cls_val,lr.eval()))
                     print('speed: {:.3f}s / iter'.format(_diff_time))
-                if (iter+1) %1000 ==0:
+                if (iter+1) %200 ==0:
                     last_snap_shot_iter=iter
                     self.snapshot(sess,iter)
 
