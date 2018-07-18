@@ -76,7 +76,7 @@ class VGGnet_test(Network):
         
         saver=tf.train.Saver()
         try:
-            checkpoint_path=os.path.join(DATA_DIR,'snapshot')
+            checkpoint_path=os.path.join(DATA_DIR,'snapshot_basicnet')
             ckpt=tf.train.get_checkpoint_state(checkpoint_path)
             print('Restoring from{}...'.format(ckpt.model_checkpoint_path),end=' ')
             saver.restore(sess,ckpt.model_checkpoint_path)
