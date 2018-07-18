@@ -130,7 +130,7 @@ class VGGnet_train(Network):
             #self.writer必须在创建会话后创建
             self.saver = tf.train.Saver(max_to_keep=10,write_version=tf.train.SaverDef.V2)
             self.writer = tf.summary.FileWriter(logdir=log_dir,
-                                                 graph=tf.get_default_graph(),
+                                                 graph=sess.graph
                                                  flush_secs=5)
             #开始会话
             total_loss,model_loss,rpn_cross_entropy=self.build_loss()
