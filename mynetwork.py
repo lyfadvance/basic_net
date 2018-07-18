@@ -231,6 +231,7 @@ class Network(object):
         # d = input.get_shape()[-1]
         return tf.reshape(tf.nn.softmax(tf.reshape(input, [-1, input_shape[3]])),
                           [-1, input_shape[1], input_shape[2], input_shape[3]], name=name)
+
     @layer
     def spatial_reshape_layer(self, input, d, name):
         input_shape = tf.shape(input)

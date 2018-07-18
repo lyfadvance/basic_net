@@ -51,10 +51,15 @@ class VGGnet_test(Network):
         (self.feed('data')
              .abs_conv(3,3,64,1,1,name='abs_conv1_1')
              .abs_conv(3,3,64,1,1,name='abs_conv1_2')
-             .max_pool(4,4,4,4,padding='VALID',name='abs_pool1')
-             .abs_conv(3,3,64,1,1,name='abs_conv2_1')
-             .abs_conv(3,3,64,1,1,name='abs_conv2_2')
-             .max_pool(4,4,4,4,padding='VALID',name='abs_pool2'))
+             .conv(3,3,64,1,1,name='conv6_1')
+             .conv(3,3,64,1,1,name='conv6_1')
+             .max_pool(2,2,2,2,padding='VALID',name='abs_pool1')
+             .conv(3,3,128,1,1,name='conv7_1')
+             .conv(3,3,128,1,1,name='conv7_2')
+             .max_pool(2,2,2,2,padding='VALID',name='abs_pool2')
+             .conv(3,3,512,1,1,name='conv8_1')
+             .conv(3,3,512,1,1,name='conv8_2')
+             .max_pool(4,4,4,4,padding='VALID',name='abs_pool3'))
         #concat abs_conv and conv
         (self.feed('conv5_3','abs_pool2')
              .concat(axis=3,name='myconcat'))
@@ -107,11 +112,14 @@ class VGGnet_test(Network):
         for im_name in im_names:
             print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
             print(('Demo for {:s}'.format(im_name)))
-            scores,rpn_conv,conv1_2,conv1_1,height,width=self.test_single(sess,im_name)
+            scores,rpn_conv,abs_conv1_2,conv1_2,abs_conv1_1,conv1_1,height,width=self.test_single(sess,im_name)
             self.show_scores(scores,im_name,height,width)
             self.show_feature_map(rpn_conv[0],im_name,'rpnconv')
             self.show_feature_map(conv1_2[0],im_name,'conv1_2')
             self.show_feature_map(conv1_1[0],im_name,'conv1_1')
+            self.show_feature_map(abs_conv1_1[0],im_name,'abs_conv1_1')
+            self.show_feature_map(abs_conv1_2[0],im_name,'abs_conv1_2')
+            
     ##测试单个图片
     def test_single(self,sess,im_name):
         img=cv2.imread(im_name)
@@ -122,10 +130,10 @@ class VGGnet_test(Network):
 
         feed_dict={self.data:blobs['data'],self.im_info:blobs['im_info']}
         
-        rois,rpn_conv,conv1_2,conv1_1=sess.run([net.get_output('rois'),net.get_output('rpn_conv/3x3'),net.get_output('conv1_2'),net.get_output('conv1_1')],feed_dict=feed_dict)
+        rois,rpn_conv,abs_conv1_2,conv1_2,abs_conv1_1,conv1_1=sess.run([net.get_output('rois'),net.get_output('rpn_conv/3x3'),net.get_output('abs_conv1_2'),net.get_output('conv1_2'),net.get_output('abs_conv1_1'),net.get_output('conv1_1')],feed_dict=feed_dict)
         #rois=rois[0]
         scores=rois
-        return scores,rpn_conv,conv1_2,conv1_1,img.shape[0],img.shape[1]
+        return scores,rpn_conv,abs_conv1_2,conv1_2,abs_conv1_1,conv1_1,img.shape[0],img.shape[1]
     def show_feature_map(self,feature_map,im_name,feature_name):
         feature_map=feature_map*255
         height,width,depth=feature_map.shape

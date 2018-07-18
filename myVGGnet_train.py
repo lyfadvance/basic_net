@@ -49,12 +49,17 @@ class VGGnet_train(Network):
         (self.feed('data')
              .abs_conv(3,3,64,1,1,name='abs_conv1_1')
              .abs_conv(3,3,64,1,1,name='abs_conv1_2')
-             .max_pool(4,4,4,4,padding='VALID',name='abs_pool1')
-             .abs_conv(3,3,64,1,1,name='abs_conv2_1')
-             .abs_conv(3,3,64,1,1,name='abs_conv2_2')
-             .max_pool(4,4,4,4,padding='VALID',name='abs_pool2'))
+             .conv(3,3,64,1,1,name='test_conv10_1')
+             .conv(3,3,64,1,1,name='test_conv10_2')
+             .max_pool(2,2,2,2,padding='VALID',name='abs_pool1')
+             .conv(3,3,128,1,1,name='test_conv11_1')
+             .conv(3,3,128,1,1,name='test_conv11_2')
+             .max_pool(2,2,2,2,padding='VALID',name='abs_pool2')
+             .conv(3,3,512,1,1,name='test_conv12_1')
+             .conv(3,3,512,1,1,name='test_conv12_2')
+             .max_pool(4,4,4,4,padding='VALID',name='abs_pool3'))
         #concat abs_conv and conv
-        (self.feed('conv5_3','abs_pool2')
+        (self.feed('conv5_3','abs_pool3')
              .concat(axis=3,name='myconcat'))
         #========= RPN ============
         '''
@@ -65,6 +70,7 @@ class VGGnet_train(Network):
              .conv(3,3,512,1,1,name='rpn_conv/3x3'))
         #(self.feed('rpn_conv/3x3').Bilstm(512,128,512,name='lstm_o'))
         (self.feed('rpn_conv/3x3').regress(512,1 * 2, name='rpn_cls_score'))
+        (self.feed('rpn_conv/3x3').regress(512,1 * 4, name='rpn_bbox_pred'))
         #(self.feed('lstm_o').lstm_fc(512,len(anchor_scales) * 10 * 2,name='rpn_cls_score'))
 
         # generating training labels on the fly
@@ -76,8 +82,8 @@ class VGGnet_train(Network):
         # shape is (1, H, W, Ax2) -> (1, H, WxA, 2)
         # 给之前得到的score进行softmax，得到0-1之间的得分
         (self.feed('rpn_cls_score')
-             .spatial_reshape_layer(2, name = 'rpn_cls_score_reshape')
-             )
+             .spatial_reshape_layer(2, name = 'rpn_cls_score_reshape')#[1,H,W*A,4]
+             .spatial_softmax(name='rpn_cls_prob'))
 ###################################################
 #计算loss
 ###################################################
@@ -86,12 +92,30 @@ class VGGnet_train(Network):
         rpn_label=tf.reshape(self.get_output('rpn-data')[0],[-1])
         ##收集不是dont care的label
         rpn_keep=tf.where(tf.not_equal(rpn_label,-1))
+        ##收集正样本
+        fg_keep=tf.equal(rpn_label,1)
+
         rpn_cls_score=tf.gather(rpn_cls_score,rpn_keep)
         rpn_label=tf.gather(rpn_label,rpn_keep)
         rpn_cross_entropy_n = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=rpn_label,logits=rpn_cls_score)
+        #计算score loss
         rpn_cross_entropy=tf.reduce_mean(rpn_cross_entropy_n)
         
-        model_loss=rpn_cross_entropy
+        #计算box loss
+        rpn_bbox_targets=self.get_output('rpn-data')[1]
+        rpn_bbox_inside_weights = self.get_output('rpn-data')[2]
+        rpn_bbox_outside_weights = self.get_output('rpn-data')[3]
+
+        rpn_bbox_pred=self.get_output('rpn_bbox_pred')
+        rpn_bbox_pred = tf.gather(tf.reshape(rpn_bbox_pred, [-1, 4]), rpn_keep) # shape (N, 4)
+        rpn_bbox_targets = tf.gather(tf.reshape(rpn_bbox_targets, [-1, 4]), rpn_keep)
+        rpn_bbox_inside_weights = tf.gather(tf.reshape(rpn_bbox_inside_weights, [-1, 4]), rpn_keep)
+        rpn_bbox_outside_weights = tf.gather(tf.reshape(rpn_bbox_outside_weights, [-1, 4]), rpn_keep)
+        rpn_loss_box_n = tf.reduce_sum(rpn_bbox_outside_weights * self.smooth_l1_dist(
+            rpn_bbox_inside_weights * (rpn_bbox_pred - rpn_bbox_targets)), reduction_indices=[1])
+        rpn_loss_box = tf.reduce_sum(rpn_loss_box_n) / (tf.reduce_sum(tf.cast(fg_keep, tf.float32)) + 1)
+        #计算score和box的总的loss
+        model_loss=rpn_cross_entropy+rpn_loss_box
         regularization_losses=tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
         total_loss=tf.add_n(regularization_losses)+model_loss
 
@@ -184,7 +208,7 @@ class VGGnet_train(Network):
                     print('iter: %d / %d, total loss: %.4f, model loss: %.4f, rpn_loss_cls: %.4f, lr: %f'%\
                         (iter, max_iters, total_loss_val,model_loss_val,rpn_loss_cls_val,lr.eval()))
                     print('speed: {:.3f}s / iter'.format(_diff_time))
-                if (iter+1) %1000 ==0:
+                if (iter+1) %200 ==0:
                     last_snap_shot_iter=iter
                     self.snapshot(sess,iter)
 
@@ -196,4 +220,4 @@ if __name__=='__main__':
     print("_______________________",output_dir)
     log_dir=os.path.join(DATA_DIR,'log')
     pretrained_model='VGG_imagenet.npy'
-    net.train(imdb,output_dir,log_dir,pretrained_model,restore=False)
+    net.train(imdb,output_dir,log_dir,pretrained_model,restore=True)

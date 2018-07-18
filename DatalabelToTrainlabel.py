@@ -106,15 +106,41 @@ def DatalabelToTrainlabel_layer(rpn_cls_score,gt_boxes,im_info):
         disable_inds=npr.choice(
             bg_inds,size=(len(bg_inds)-256),replace=False)
         labels[disable_inds]=-1
+    
+    #计算权重
+    bbox_inside_weights=np.zeros((len(inds_inside),3),dtype=np.float32)
+    bbox_inside_weights[labels==1,:]=np.array([0,1,0,1])
+    bbox_outside_weights=np.zeros((len(inds_inside),4),dtype=np.float32)
+    positive_weights = np.ones((1, 4))
+    negative_weights = np.zeros((1, 4))
+    bbox_outside_weights[labels==1,:]=positive_weights
+    bbox_outside_weights[labels==0,:]=negative_weights
+    bbox_inside_weights = _unmap(bbox_inside_weights, total_anchors, inds_inside, fill=0)#内部权重以0填充
+    bbox_outside_weights = _unmap(bbox_outside_weights, total_anchors, inds_inside, fill=0)#外部权重以0填充
+
+    # bbox_inside_weights
+    bbox_inside_weights = bbox_inside_weights \
+        .reshape((1, height, width, A * 4))
+
+    rpn_bbox_inside_weights = bbox_inside_weights
+
+    # bbox_outside_weights
+    bbox_outside_weights = bbox_outside_weights \
+        .reshape((1, height, width, A * 4))
+    rpn_bbox_outside_weights = bbox_outside_weights
 
     ##计算score label和边框回归的label
     bbox_targets=np.zeros((len(inds_inside),4),dtype=np.float32)
     bbox_targets=_compute_targets(anchors,gt_boxes[argmax_overlaps,:])
-
     labels=_unmap(labels,total_anchors,inds_inside,fill=-1)
     labels=labels.reshape((1,height,width,A))
     rpn_labels=labels
-    return rpn_labels
+
+    bbox_targets=_unmap(bbox_targets,total_anchors,inds_inside,fill=0)
+    bbox_targets=bbox_targets.reshape((1,height,width,A*4))
+    rpn_bbox_targets=bbox_targets
+
+    return rpn_labels,rpn_bbox_targets,rpn_bbox_inside_weights,rpn_bbox_outside_weights
 #因为之前将一些anchor样本舍去了，这里重新构建所有的anchor,只不过舍去的anchor设置为不感兴趣,dont care
 def _unmap(data,count,inds,fill=0):#data指label的数据，count:所有的anchor的数量,inds:保留的anchor的坐标
     #对label进行扩充
@@ -164,6 +190,7 @@ def bbox_transform(ex_rois, gt_rois):
 
     # warnings.catch_warnings()
     # warnings.filterwarnings('error')
+    #为了与fast rcnn兼容，计算了4个回归，实际上只需要两个回归
     targets_dx = (gt_ctr_x - ex_ctr_x) / ex_widths
     targets_dy = (gt_ctr_y - ex_ctr_y) / ex_heights
     targets_dw = np.log(gt_widths / ex_widths)
