@@ -113,8 +113,10 @@ class Network(object):
         c_i=input.get_shape()[-1]
         convolve=lambda i,k:tf.nn.conv2d(i,k,[1,s_h,s_w,1],padding=padding)
         with tf.variable_scope(name) as scope:
-            init_weights=tf.truncated_normal_initializer(0.0,stddev=0.01)
-            init_biases=tf.constant_initializer(0.0)
+            #init_weights=tf.truncated_normal_initializer(0.0,stddev=0.01)
+            #init_biases=tf.constant_initializer(0.0)
+            init_weights=tf.random_uniform_initializer(-255,255)
+            init_biases=tf.random_uniform_initializer(-255,0)
             kernel=self.make_var('weights',[k_h,k_w,c_i,c_o],init_weights,trainable,\
                                     regularizer=self.l2_regularizer(WEIGHT_DECAY))
             if biased:
