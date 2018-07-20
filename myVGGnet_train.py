@@ -28,6 +28,9 @@ class VGGnet_train(Network):
         _feat_stride = [16, ]
 
         (self.feed('data')
+             .abs_conv(3,3,64,1,1,name='abs_conv1_1')
+             .abs_conv(3,3,64,1,1,name='abs_conv1_2')
+             .abs_conv(3,3,3,1,1,name='abs_conv1_3')
              .conv(3, 3, 64, 1, 1, name='conv1_1')
              .conv(3, 3, 64, 1, 1, name='conv1_2')
              .max_pool(2, 2, 2, 2, padding='VALID', name='pool1')
@@ -46,6 +49,7 @@ class VGGnet_train(Network):
              .conv(3, 3, 512, 1, 1, name='conv5_2')
              .conv(3, 3, 512, 1, 1, name='conv5_3'))
         #abs_conv
+        '''
         (self.feed('data')
              .abs_conv(3,3,64,1,1,name='abs_conv1_1')
              .abs_conv(3,3,64,1,1,name='abs_conv1_2')
@@ -61,13 +65,15 @@ class VGGnet_train(Network):
         #concat abs_conv and conv
         (self.feed('conv5_3','abs_pool3')
              .concat(axis=3,name='myconcat'))
-        #========= RPN ============
         '''
+        #========= RPN ============
+        
         (self.feed('conv5_3')
              .conv(3,3,512,1,1,name='rpn_conv/3x3'))
         '''
         (self.feed('myconcat')
              .conv(3,3,512,1,1,name='rpn_conv/3x3'))
+        '''
         #(self.feed('rpn_conv/3x3').Bilstm(512,128,512,name='lstm_o'))
         (self.feed('rpn_conv/3x3').regress(512,1 * 2, name='rpn_cls_score'))
         #(self.feed('lstm_o').lstm_fc(512,len(anchor_scales) * 10 * 2,name='rpn_cls_score'))
@@ -130,7 +136,7 @@ class VGGnet_train(Network):
             #self.writer必须在创建会话后创建
             self.saver = tf.train.Saver(max_to_keep=10,write_version=tf.train.SaverDef.V2)
             self.writer = tf.summary.FileWriter(logdir=log_dir,
-                                                 graph=sess.graph
+                                                 graph=sess.graph,
                                                  flush_secs=5)
             #开始会话
             total_loss,model_loss,rpn_cross_entropy=self.build_loss()

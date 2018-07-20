@@ -5,7 +5,7 @@ from tensorflow.python import pywrap_tensorflow
 # checkpoint_path = os.path.join('~/tensorflowTraining/ResNet/model', "model.ckpt")
  
 # code for designated ckpt, change 3890 to your num
-checkpoint_path = os.path.join('/home/hadoop/python_project/mycode/snapshot', "iter_23000.ckpt")
+checkpoint_path = os.path.join('/home/hadoop/python_project/mycode/snapshot', "iter_18800.ckpt")
 # Read data from checkpoint file
 reader = pywrap_tensorflow.NewCheckpointReader(checkpoint_path)
 var_to_shape_map = reader.get_variable_to_shape_map()
