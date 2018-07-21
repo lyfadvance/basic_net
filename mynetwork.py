@@ -130,6 +130,26 @@ class Network(object):
             else:
                 print("-------------------error")
     @layer
+    def reuse_conv(self,input,scope_name,k_h,k_w,c_o,s_h,s_w,name,biased=True,relu=True,padding=DEFAULT_PADDING,trainable=True):
+        self.validate_padding(padding)
+        convolve=lambda i,k:tf.nn.conv2d(i,k,[1,s_h,s_w,1],padding=padding)
+        with tf.variable_scope(scope_name,reuse=True):
+            kernel=tf.get_variable('weights',[k_h,k_w,c_i,c_o])
+            if biased:
+                #biases = self.make_var('biases', [c_o], init_biases, trainable)
+                biases=tf.get_variable('biases',[c_o])
+                conv = convolve(input, kernel)
+                if relu:
+                    bias = tf.nn.bias_add(conv, biases)
+                    return tf.nn.relu(bias, name=scope.name)
+                return tf.nn.bias_add(conv, biases, name=scope.name)
+            else:
+                conv = convolve(input, kernel)
+                if relu:
+                    return tf.nn.relu(conv, name=scope.name)
+                return conv
+
+    @layer
     def concat(self, inputs, axis, name):
         with tf.variable_scope(name) as scope:
             return tf.concat(axis=axis, values=inputs, name=scope.name)
