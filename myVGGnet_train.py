@@ -26,11 +26,8 @@ class VGGnet_train(Network):
         # anchor_scales = [8, 16, 32]
         #anchor_scales = cfg.ANCHOR_SCALES
         _feat_stride = [16, ]
-
+        '''
         (self.feed('data')
-             .abs_conv(3,3,64,1,1,name='abs_conv1_1')
-             .abs_conv(3,3,64,1,1,name='abs_conv1_2')
-             .abs_conv(3,3,3,1,1,name='abs_conv1_3')
              .conv(3, 3, 64, 1, 1, name='conv1_1')
              .conv(3, 3, 64, 1, 1, name='conv1_2')
              .max_pool(2, 2, 2, 2, padding='VALID', name='pool1')
@@ -48,6 +45,31 @@ class VGGnet_train(Network):
              .conv(3, 3, 512, 1, 1, name='conv5_1')
              .conv(3, 3, 512, 1, 1, name='conv5_2')
              .conv(3, 3, 512, 1, 1, name='conv5_3'))
+        '''
+        (self.feed('data')
+             .pnc_conv(3,3,64,1,1,name='conv1_1')
+             .conv(3,3,64,1,1,name='conv1_3')
+             .pnc_conv(3,3,64,1,1,name='conv1_2')
+             .conv(3,3,64,1,1,name='conv1_4')
+             .max_pool(2, 2, 2, 2, padding='VALID', name='pool1')
+             .pnc_conv(3,3,128,1,1,name='conv2_1')
+             .conv(3,3,128,1,1,name='conv2_3')
+             .pnc_conv(3,3,128,1,1,name='conv2_2')
+             .conv(3,3,128,1,1,name='conv2_4')
+             .max_pool(2, 2, 2, 2, padding='VALID', name='pool2')
+             .conv(3, 3, 256, 1, 1, name='conv3_1')
+             .conv(3, 3, 256, 1, 1, name='conv3_2')
+             .conv(3, 3, 256, 1, 1, name='conv3_3')
+             .max_pool(2, 2, 2, 2, padding='VALID', name='pool3')
+             .conv(3, 3, 512, 1, 1, name='conv4_1')
+             .conv(3, 3, 512, 1, 1, name='conv4_2')
+             .conv(3, 3, 512, 1, 1, name='conv4_3')
+             .max_pool(2, 2, 2, 2, padding='VALID', name='pool4')
+             .conv(3, 3, 512, 1, 1, name='conv5_1')
+             .conv(3, 3, 512, 1, 1, name='conv5_2')
+             .conv(3, 3, 512, 1, 1, name='conv5_3'))
+             
+             
         #abs_conv
         '''
         (self.feed('data')
