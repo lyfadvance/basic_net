@@ -130,7 +130,7 @@ class Network(object):
             else:
                 print("-------------------error")
     @layer
-    def reuse_conv(self,input,scope_name,k_h,k_w,c_o,s_h,s_w,name,biased=True,relu=True,padding=DEFAULT_PADDING,trainable=True):
+    def reuse_conv(self,input,k_h,k_w,c_o,s_h,s_w,scope_name,name,biased=True,relu=True,padding=DEFAULT_PADDING,trainable=True):
         self.validate_padding(padding)
         convolve=lambda i,k:tf.nn.conv2d(i,k,[1,s_h,s_w,1],padding=padding)
         with tf.variable_scope(scope_name,reuse=True):
@@ -254,6 +254,18 @@ class Network(object):
         # d = input.get_shape()[-1]
         return tf.reshape(tf.nn.softmax(tf.reshape(input, [-1, input_shape[3]])),
                           [-1, input_shape[1], input_shape[2], input_shape[3]], name=name)
+    
+    @layer
+    def weights_softmax(self, input, name):
+        input_shape = tf.shape(input)
+        # d = input.get_shape()[-1]
+        return tf.reshape(tf.nn.softmax(tf.reshape(input, [-1, input_shape[3]])),
+                          [-1, input_shape[3]], name=name)
+
+    @layer
+    def weights_mean(self,input,name):
+        return tf.reduce_mean(input,0)
+
     @layer
     def spatial_reshape_layer(self, input, d, name):
         input_shape = tf.shape(input)

@@ -28,9 +28,45 @@ class VGGnet_train(Network):
         _feat_stride = [16, ]
 
         (self.feed('data')
-             .abs_conv(3,3,64,1,1,name='abs_conv1_1')
-             .abs_conv(3,3,64,1,1,name='abs_conv1_2')
-             .abs_conv(3,3,3,1,1,name='abs_conv1_3')
+             .max_pool(2,2,2,2,padding='VALID',name='pool5')
+             .reuse_conv(3, 3, 64, 1, 1,'conv1_1', name='conv01_1')
+             .reuse_conv(3, 3, 64, 1, 1, 'conv1_2'name='conv01_2')
+             .max_pool(2, 2, 2, 2, padding='VALID', name='pool1')
+             .reuse_conv(3, 3, 128, 1, 1,'conv2_1' name='conv02_1')
+             .reuse_conv(3, 3, 128, 1, 1, 'conv2_2',name='conv02_2')
+             .max_pool(2, 2, 2, 2, padding='VALID', name='pool2')
+             .reuse_conv(3, 3, 256, 1, 1, 'conv3_1',name='conv03_1')
+             .reuse_conv(3, 3, 256, 1, 1, 'con3_2',name='conv03_2')
+             .reuse_conv(3, 3, 256, 1, 1, name='conv03_3')
+             .max_pool(2, 2, 2, 2, padding='VALID', name='pool3')
+             .reuse_conv(3, 3, 512, 1, 1, 'conv4_1',name='conv04_1')
+             .reuse_conv(3, 3, 512, 1, 1, 'conv4_2',name='conv04_2')
+             .reuse_conv(3, 3, 512, 1, 1, 'conv4_3',name='conv04_3')
+             .max_pool(2, 2, 2, 2, padding='VALID', name='pool4')
+             .reuse_conv(3, 3, 512, 1, 1, 'conv5_1',name='conv05_1')
+             .reuse_conv(3, 3, 512, 1, 1, 'conv5_2',name='conv05_2')
+             .reuse_conv(3, 3, 512, 1, 1, 'conv5_3',name='conv05_3'))
+        (self.feed('data')
+             .maxpool(2,2,2,2,padding='VALID',name='pool6')
+             .maxpool(2,2,2,2,padding='VALID',name='pool7')
+             .reuse_conv(3, 3, 64, 1, 1, 'conv1_1',name='conv11_1')
+             .reuse_conv(3, 3, 64, 1, 1, 'conv1_2',name='conv11_2')
+             .max_pool(2, 2, 2, 2, padding='VALID', name='pool1')
+             .reuse_conv(3, 3, 128, 1, 1, 'conv2_1',name='conv12_1')
+             .reuse_conv(3, 3, 128, 1, 1, 'conv2_2',name='conv12_2')
+             .max_pool(2, 2, 2, 2, padding='VALID', name='pool2')
+             .reuse_conv(3, 3, 256, 1, 1, 'conv3_1',name='conv13_1')
+             .reuse_conv(3, 3, 256, 1, 1, 'conv3_2',name='conv13_2')
+             .reuse_conv(3, 3, 256, 1, 1, 'conv3_3',name='conv13_3')
+             .max_pool(2, 2, 2, 2, padding='VALID', name='pool3')
+             .reuse_conv(3, 3, 512, 1, 1, 'conv4_1',name='conv14_1')
+             .reuse_conv(3, 3, 512, 1, 1, 'conv4_2',name='conv14_2')
+             .reuse_conv(3, 3, 512, 1, 1, 'conv4_3',name='conv14_3')
+             .max_pool(2, 2, 2, 2, padding='VALID', name='pool4')
+             .reuse_conv(3, 3, 512, 1, 1, 'conv5_1',name='conv15_1')
+             .reuse_conv(3, 3, 512, 1, 1, 'conv5_2',name='conv15_2')
+             .reuse_conv(3, 3, 512, 1, 1, 'conv5_3',name='conv15_3'))
+        (self.feed('data')
              .conv(3, 3, 64, 1, 1, name='conv1_1')
              .conv(3, 3, 64, 1, 1, name='conv1_2')
              .max_pool(2, 2, 2, 2, padding='VALID', name='pool1')
@@ -48,6 +84,12 @@ class VGGnet_train(Network):
              .conv(3, 3, 512, 1, 1, name='conv5_1')
              .conv(3, 3, 512, 1, 1, name='conv5_2')
              .conv(3, 3, 512, 1, 1, name='conv5_3'))
+        #来计算多尺度权重
+        #仍然使用全卷积网络，但是对所有的特征图上的[w1,w2,w3]进行reduce_sum。然后得到一个最终的[w1,w2,w3].这是通过取巧的方法从不固定的长度到固定的长度
+        (self.feed('conv05_3')
+             .regress(1,512,3,name='mult_scale_weight')
+             .weights_softmax('weight_prob')#shape [-1,3]
+             .weights_mean('weight_prob_mean')#shape [3]
         #abs_conv
         '''
         (self.feed('data')
@@ -66,6 +108,54 @@ class VGGnet_train(Network):
         (self.feed('conv5_3','abs_pool3')
              .concat(axis=3,name='myconcat'))
         '''
+        #========= RPN ============
+        
+        (self.feed('conv05_3')
+             .conv(3,3,512,1,1,name='rpn_conv0/3x3'))
+        '''
+        (self.feed('myconcat')
+             .conv(3,3,512,1,1,name='rpn_conv/3x3'))
+        '''
+        #(self.feed('rpn_conv/3x3').Bilstm(512,128,512,name='lstm_o'))
+        (self.feed('rpn_conv0/3x3').regress(512,1 * 2, name='rpn_cls_score0'))
+        #(self.feed('lstm_o').lstm_fc(512,len(anchor_scales) * 10 * 2,name='rpn_cls_score'))
+
+        # generating training labels on the fly
+        # output: rpn_labels(HxWxA, 2) rpn_bbox_targets(HxWxA, 4) rpn_bbox_inside_weights rpn_bbox_outside_weights
+        # 给每个anchor上标签，并计算真值（也是delta的形式），以及内部权重和外部权重
+        (self.feed('rpn_cls_score0', 'gt_boxes', 'im_info')
+             .DatalabelToTrainlabel_layer(name = 'rpn-data'))
+
+        # shape is (1, H, W, Ax2) -> (1, H, WxA, 2)
+        # 给之前得到的score进行softmax，得到0-1之间的得分
+        (self.feed('rpn_cls_score0')
+             .spatial_reshape_layer(2, name = 'rpn_cls_score_reshape')
+             )
+
+        #========= RPN ============
+        
+        (self.feed('conv15_3')
+             .conv(3,3,512,1,1,name='rpn_conv1/3x3'))
+        '''
+        (self.feed('myconcat')
+             .conv(3,3,512,1,1,name='rpn_conv/3x3'))
+        '''
+        #(self.feed('rpn_conv/3x3').Bilstm(512,128,512,name='lstm_o'))
+        (self.feed('rpn_conv1/3x3').regress(512,1 * 2, name='rpn_cls_score1'))
+        #(self.feed('lstm_o').lstm_fc(512,len(anchor_scales) * 10 * 2,name='rpn_cls_score'))
+
+        # generating training labels on the fly
+        # output: rpn_labels(HxWxA, 2) rpn_bbox_targets(HxWxA, 4) rpn_bbox_inside_weights rpn_bbox_outside_weights
+        # 给每个anchor上标签，并计算真值（也是delta的形式），以及内部权重和外部权重
+        (self.feed('rpn_cls_score1', 'gt_boxes', 'im_info')
+             .DatalabelToTrainlabel_layer(name = 'rpn-data'))
+
+        # shape is (1, H, W, Ax2) -> (1, H, WxA, 2)
+        # 给之前得到的score进行softmax，得到0-1之间的得分
+        (self.feed('rpn_cls_score1')
+             .spatial_reshape_layer(2, name = 'rpn_cls_score_reshape1')
+             )
+        
         #========= RPN ============
         
         (self.feed('conv5_3')
