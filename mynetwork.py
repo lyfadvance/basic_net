@@ -83,7 +83,22 @@ class Network(object):
         assert padding in ('SAME', 'VALID')
     
     @layer
-    def conv(self, input, k_h, k_w, c_o, s_h, s_w, name, biased=True,relu=True, padding=DEFAULT_PADDING, trainable=True):
+    def conloss_conv(self, input, k_h, k_w, c_o, s_h, s_w, name, biased=True,relu=True, padding=DEFAULT_PADDING, trainable=True):
+        """ contribution by miraclebiu, and biased option"""
+        self.validate_padding(padding)
+        c_i = input.get_shape()[-1]
+        convolve = lambda i, k: tf.nn.conv2d(i, k, [1, s_h, s_w, 1], padding=padding)
+        with tf.variable_scope(name) as scope:
+            value=np.zeros((3,3,2,1))
+            value[:,:,0,0]=np.zeros((3,3))
+            value[:,:,1,0]=np.array([[-0.25,-0.25,-0.25],[-0.25,1,-0.25],[-0.25,-0.25,-0.25]])
+            
+            init_weights=tf.constant_initializer(value)
+            kernel = self.make_var('weights', [k_h, k_w, c_i, c_o], init_weights, False)
+            return convolve(input,kernel)
+
+    @layer
+    def conv(self, input, k_h, k_w, c_o, s_h, s_w, name, biased=True,relu=True, padding=DEFAULT_PADDING, trainable=False):
         """ contribution by miraclebiu, and biased option"""
         self.validate_padding(padding)
         c_i = input.get_shape()[-1]
@@ -207,6 +222,8 @@ class Network(object):
         # d = input.get_shape()[-1]
         return tf.reshape(tf.nn.softmax(tf.reshape(input, [-1, input_shape[3]])),
                           [-1, input_shape[1], input_shape[2], input_shape[3]], name=name)
+
+    
     @layer
     def spatial_reshape_layer(self, input, d, name):
         input_shape = tf.shape(input)

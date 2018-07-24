@@ -6,7 +6,7 @@ import os.path as osp
 from imdb_load import imdb_load
 from timer import Timer
 LEARNING_RATE=0.00001
-DISPLAY=1
+DISPLAY=50
 ROOT_DIR=osp.abspath(osp.join(osp.dirname(__file__)))
 DATA_DIR=osp.abspath(osp.join(ROOT_DIR))
 class VGGnet_train(Network):
@@ -63,11 +63,16 @@ class VGGnet_train(Network):
         # 给之前得到的score进行softmax，得到0-1之间的得分
         (self.feed('rpn_cls_score')
              .spatial_reshape_layer(2, name = 'rpn_cls_score_reshape')
+             .spatial_softmax(name='rpn_cls_prob')
+             .conloss_conv(3,3,2,3,3,name='conloss')
              )
 ###################################################
 #计算loss
 ###################################################
     def build_loss(self):
+        conloss=tf.reshape(self.get_output('conloss'),[-1])
+        conloss=tf.reduce_mean(tf.square(conloss))
+
         rpn_cls_score=tf.reshape(self.get_output('rpn_cls_score_reshape'),[-1,2])
         rpn_label=tf.reshape(self.get_output('rpn-data')[0],[-1])
         ##收集不是dont care的label
@@ -77,7 +82,7 @@ class VGGnet_train(Network):
         rpn_cross_entropy_n = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=rpn_label,logits=rpn_cls_score)
         rpn_cross_entropy=tf.reduce_mean(rpn_cross_entropy_n)
         
-        model_loss=rpn_cross_entropy
+        model_loss=rpn_cross_entropy+0.7*conloss
         regularization_losses=tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
         total_loss=tf.add_n(regularization_losses)+model_loss
 
@@ -95,7 +100,7 @@ class VGGnet_train(Network):
         self.saver.save(sess,filename)
         print('Wrote snapshot to :{:s}'.format(filename))
 
-    def train(self,imdb,output_dir,log_dir,pretrained_model=None,max_iters=40000,restore=False):
+    def train(self,imdb,output_dir,log_dir,pretrained_model=None,max_iters=5000,restore=False):
         config=tf.ConfigProto(allow_soft_placement=True)
         config.gpu_options.allocator_type='BFC'
         config.gpu_options.per_process_gpu_memory_fraction=0.75
@@ -171,7 +176,7 @@ class VGGnet_train(Network):
                     print('iter: %d / %d, total loss: %.4f, model loss: %.4f, rpn_loss_cls: %.4f, lr: %f'%\
                         (iter, max_iters, total_loss_val,model_loss_val,rpn_loss_cls_val,lr.eval()))
                     print('speed: {:.3f}s / iter'.format(_diff_time))
-                if (iter+1) %100 ==0:
+                if (iter+1) %500 ==0:
                     last_snap_shot_iter=iter
                     self.snapshot(sess,iter)
 
@@ -183,4 +188,4 @@ if __name__=='__main__':
     print("_______________________",output_dir)
     log_dir=os.path.join(DATA_DIR,'log')
     pretrained_model='VGG_imagenet.npy'
-    net.train(imdb,output_dir,log_dir,pretrained_model,restore=True)
+    net.train(imdb,output_dir,log_dir,pretrained_model,restore=False)
