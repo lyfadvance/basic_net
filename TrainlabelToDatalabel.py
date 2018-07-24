@@ -1,13 +1,14 @@
+#encoding utf-8
 import numpy as np
 import numpy.random as npr
-
+from util.gpu_nms import gpu_nms
 def TrainlabelToDatalabel_layer(rpn_cls_prob_reshape,rpn_bbox_pred,im_info):
     _anchors=np.array([[0,0,15,15]],np.int32)
     _num_anchors=_anchors.shape[0]
     height,width=rpn_cls_prob_reshape.shape[1:3]
     K=height*width
     A=_num_anchors
-
+    im_info=im_info[0]
 
     #print("______________________",height,width)
     scores = np.reshape(np.reshape(rpn_cls_prob_reshape, [1, height, width, _num_anchors, 2])[:,:,:,:,1],
@@ -31,15 +32,13 @@ def TrainlabelToDatalabel_layer(rpn_cls_prob_reshape,rpn_bbox_pred,im_info):
     bbox_deltas=rpn_bbox_pred
     bbox_deltas=bbox_deltas.reshape((-1,4))
     scores=scores.reshape((-1,1))
-    proposals=bbox_transform_inv(anchors,bbox_deltas)
+    proposals=bbox_transform_inv(all_anchors,bbox_deltas)
     proposals=clip_boxes(proposals,im_info[:2])#将所有的proposal修建一下，超出图像范围的将会被修剪掉
     #ctpn代码中还做了一些过滤,这里没有实现
-    order=scores.ravel().argsort()[::-1]
-    order=order[:30*30*1]#这里有bug,因为现在没有实现图像缩放，生成的score个数可能小于30*30*1
-    proposals=proposals[order,:]
-    scores=scores[order]
-    bbox_deltas=bbox_deltas=[order,:]
-
+    keep_inds=np.where(scores>0.7)[0]
+    proposals, scores=proposals[keep_inds], scores[keep_inds]
+    sorted_indices=np.argsort(scores.ravel())[::-1]
+    proposals, scores=proposals[sorted_indices], scores[sorted_indices]
     ##开始进行nms算法
     ##其中scores形如
 #[[],len为1
@@ -50,11 +49,13 @@ def TrainlabelToDatalabel_layer(rpn_cls_prob_reshape,rpn_bbox_pred,im_info):
 #[[],len为4
 # []
 # ...
-#]
+#]  
+   # print(proposals)
     #构造nms的输入
-    nms_input=np.hstack((proposals,socres))
-    blob = np.hstack((scores.astype(np.float32, copy=False), proposals.astype(np.float32, copy=False)))
-    return blob,bbox_deltas
+    nms_input=np.hstack((proposals,scores))
+    keeps=gpu_nms(nms_input,0.6)
+    print(keeps)
+    return nms_input[keeps]
 #########################
 #    根据网络输出，计算box坐标
 #########################

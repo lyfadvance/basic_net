@@ -171,15 +171,24 @@ class Network(object):
     @layer
     def DatalabelToTrainlabel_layer(self,input,name):
         with tf.variable_scope(name) as scope:
-            #print('---------------------------------------get')
-            rpn_labels=tf.py_func(DatalabelToTrainlabel_layer,[input[0],input[1],input[2]],tf.float32)#调用函数，输入，输出格式
-            #print('------------------------------------------get2')
-            rpn_labels=tf.convert_to_tensor(tf.cast(rpn_labels,tf.int32),name='rpn_labels')
-            return rpn_labels
+            # 'rpn_cls_score', 'gt_boxes', 'gt_ishard', 'dontcare_areas', 'im_info'
+            rpn_labels,rpn_bbox_targets,rpn_bbox_inside_weights,rpn_bbox_outside_weights = \
+                tf.py_func(DatalabelToTrainlabel_layer,
+                           [input[0],input[1],input[2]],
+                           [tf.float32,tf.float32,tf.float32,tf.float32])
+
+            rpn_labels = tf.convert_to_tensor(tf.cast(rpn_labels,tf.int32), name = 'rpn_labels') # shape is (1 x H x W x A, 2)
+            rpn_bbox_targets = tf.convert_to_tensor(rpn_bbox_targets, name = 'rpn_bbox_targets') # shape is (1 x H x W x A, 4)
+            rpn_bbox_inside_weights = tf.convert_to_tensor(rpn_bbox_inside_weights , name = 'rpn_bbox_inside_weights') # shape is (1 x H x W x A, 4)
+            rpn_bbox_outside_weights = tf.convert_to_tensor(rpn_bbox_outside_weights , name = 'rpn_bbox_outside_weights') # shape is (1 x H x W x A, 4)
+
+
+            return rpn_labels, rpn_bbox_targets, rpn_bbox_inside_weights, rpn_bbox_outside_weights
     @layer
     def TrainlabelToDatalabel_layer(self,input,name):
         with tf.variable_scope(name) as scope:
-            rpn_rois=tf.py_func(TrainlabelToDatalabel_layer,[input[0],input[1]],tf.float32)
+            rpn_rois=tf.py_func(TrainlabelToDatalabel_layer,[input[0],input[1],input[2]],[tf.float32])
+            rpn_rois=rpn_rois[0]
             rpn_rois=tf.convert_to_tensor(rpn_rois,name='rpn_rois')
             self.layers['rpn_rois']=rpn_rois
             return rpn_rois
@@ -251,6 +260,14 @@ class Network(object):
                 #return tf.mul(l2_weight, tf.nn.l2_loss(tensor), name='value')
                 return tf.multiply(l2_weight, tf.nn.l2_loss(tensor), name='value')
         return regularizer
+
+    def smooth_l1_dist(self, deltas, sigma2=9.0, name='smooth_l1_dist'):
+        with tf.name_scope(name=name) as scope:
+            deltas_abs = tf.abs(deltas)
+            smoothL1_sign = tf.cast(tf.less(deltas_abs, 1.0/sigma2), tf.float32)
+            return tf.square(deltas) * 0.5 * sigma2 * smoothL1_sign + \
+                        (deltas_abs - 0.5 / sigma2) * tf.abs(smoothL1_sign - 1)
+
 if __name__=='__main__':
     print('test')
         

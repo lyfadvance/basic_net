@@ -34,7 +34,7 @@ def bbox_overlaps(#水平的box
                     overlaps[n,k]=iw*ih/ua
     return overlaps
 def DatalabelToTrainlabel_layer(rpn_cls_score,gt_boxes,im_info):
-    _anchors=np.array([[0,0,15,15]],np.int32)
+    _anchors=np.array([[0,0,15,15]],np.float32)
     _num_anchors=_anchors.shape[0]
     #根据特征图构造所有的anchor
     #anchor的顺序是按照从上到下，从左到右一次展开
@@ -108,7 +108,7 @@ def DatalabelToTrainlabel_layer(rpn_cls_score,gt_boxes,im_info):
         labels[disable_inds]=-1
     
     #计算权重
-    bbox_inside_weights=np.zeros((len(inds_inside),3),dtype=np.float32)
+    bbox_inside_weights=np.zeros((len(inds_inside),4),dtype=np.float32)
     bbox_inside_weights[labels==1,:]=np.array([0,1,0,1])
     bbox_outside_weights=np.zeros((len(inds_inside),4),dtype=np.float32)
     positive_weights = np.ones((1, 4))

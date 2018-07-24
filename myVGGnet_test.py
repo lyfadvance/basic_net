@@ -7,6 +7,7 @@ import os.path as osp
 from imdb_load import imdb_load
 from timer import Timer
 from PIL import Image
+from util.draw_box import Drawbox
 import cv2
 LEARNING_RATE=0.00001
 DISPLAY=1
@@ -47,30 +48,15 @@ class VGGnet_test(Network):
              .conv(3, 3, 512, 1, 1, name='conv5_1')
              .conv(3, 3, 512, 1, 1, name='conv5_2')
              .conv(3, 3, 512, 1, 1, name='conv5_3'))
-        #abs_conv
-        (self.feed('data')
-             .abs_conv(3,3,64,1,1,name='abs_conv1_1')
-             .abs_conv(3,3,64,1,1,name='abs_conv1_2')
-             .conv(3,3,64,1,1,name='conv6_1')
-             .conv(3,3,64,1,1,name='conv6_1')
-             .max_pool(2,2,2,2,padding='VALID',name='abs_pool1')
-             .conv(3,3,128,1,1,name='conv7_1')
-             .conv(3,3,128,1,1,name='conv7_2')
-             .max_pool(2,2,2,2,padding='VALID',name='abs_pool2')
-             .conv(3,3,512,1,1,name='conv8_1')
-             .conv(3,3,512,1,1,name='conv8_2')
-             .max_pool(4,4,4,4,padding='VALID',name='abs_pool3'))
-        #concat abs_conv and conv
-        (self.feed('conv5_3','abs_pool2')
-             .concat(axis=3,name='myconcat'))
+   
         #========= RPN ============
-        (self.feed('myconcat')
+        (self.feed('conv5_3')
              .conv(3,3,512,1,1,name='rpn_conv/3x3'))
 
-        #(self.feed('rpn_conv/3x3').Bilstm(512,128,512,name='lstm_o'))
-        (self.feed('rpn_conv/3x3').regress(512,1*2, name='rpn_cls_score'))
+ #(self.feed('rpn_conv/3x3').Bilstm(512,128,512,name='lstm_o'))
+        (self.feed('rpn_conv/3x3').regress(512,1 * 2, name='rpn_cls_score'))
+        (self.feed('rpn_conv/3x3').regress(512,1 * 4, name='rpn_bbox_pred'))
         #(self.feed('lstm_o').lstm_fc(512,len(anchor_scales) * 10 * 2,name='rpn_cls_score'))
-
 
         # shape is (1, H, W, Ax2) -> (1, H, WxA, 2)
         # 给之前得到的score进行softmax，得到0-1之间的得分
@@ -80,7 +66,7 @@ class VGGnet_test(Network):
              )
         (self.feed('rpn_cls_prob')
             .spatial_reshape_layer(1*2,name='rpn_cls_prob_reshape'))
-        (self.feed('rpn_cls_prob_reshape','im_info')
+        (self.feed('rpn_cls_prob_reshape','rpn_bbox_pred','im_info')
             .TrainlabelToDatalabel_layer(name='rois'))
 
 #################################################
@@ -112,14 +98,15 @@ class VGGnet_test(Network):
         for im_name in im_names:
             print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
             print(('Demo for {:s}'.format(im_name)))
-            scores,rpn_conv,abs_conv1_2,conv1_2,abs_conv1_1,conv1_1,height,width=self.test_single(sess,im_name)
-            self.show_scores(scores,im_name,height,width)
-            self.show_feature_map(rpn_conv[0],im_name,'rpnconv')
-            self.show_feature_map(conv1_2[0],im_name,'conv1_2')
-            self.show_feature_map(conv1_1[0],im_name,'conv1_1')
-            self.show_feature_map(abs_conv1_1[0],im_name,'abs_conv1_1')
-            self.show_feature_map(abs_conv1_2[0],im_name,'abs_conv1_2')
-            
+            rois=self.test_single(sess,im_name)
+            #print(rois)
+            a=[0,1,2,3]
+            tps=rois[:]
+            tps=tps[:,a]
+            scores=rois[:]
+            scores=scores[:,4]
+            Draw=Drawbox()
+            Draw.draw_boxes(im_name,tps,1,scores)
     ##测试单个图片
     def test_single(self,sess,im_name):
         img=cv2.imread(im_name)
@@ -130,10 +117,9 @@ class VGGnet_test(Network):
 
         feed_dict={self.data:blobs['data'],self.im_info:blobs['im_info']}
         
-        rois,rpn_conv,abs_conv1_2,conv1_2,abs_conv1_1,conv1_1=sess.run([net.get_output('rois'),net.get_output('rpn_conv/3x3'),net.get_output('abs_conv1_2'),net.get_output('conv1_2'),net.get_output('abs_conv1_1'),net.get_output('conv1_1')],feed_dict=feed_dict)
-        #rois=rois[0]
-        scores=rois
-        return scores,rpn_conv,abs_conv1_2,conv1_2,abs_conv1_1,conv1_1,img.shape[0],img.shape[1]
+        rois=sess.run([net.get_output('rois')],feed_dict=feed_dict)
+        rois=rois[0]
+        return rois
     def show_feature_map(self,feature_map,im_name,feature_name):
         feature_map=feature_map*255
         height,width,depth=feature_map.shape

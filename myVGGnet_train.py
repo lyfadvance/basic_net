@@ -45,29 +45,13 @@ class VGGnet_train(Network):
              .conv(3, 3, 512, 1, 1, name='conv5_1')
              .conv(3, 3, 512, 1, 1, name='conv5_2')
              .conv(3, 3, 512, 1, 1, name='conv5_3'))
-        #abs_conv
-        (self.feed('data')
-             .abs_conv(3,3,64,1,1,name='abs_conv1_1')
-             .abs_conv(3,3,64,1,1,name='abs_conv1_2')
-             .conv(3,3,64,1,1,name='test_conv10_1')
-             .conv(3,3,64,1,1,name='test_conv10_2')
-             .max_pool(2,2,2,2,padding='VALID',name='abs_pool1')
-             .conv(3,3,128,1,1,name='test_conv11_1')
-             .conv(3,3,128,1,1,name='test_conv11_2')
-             .max_pool(2,2,2,2,padding='VALID',name='abs_pool2')
-             .conv(3,3,512,1,1,name='test_conv12_1')
-             .conv(3,3,512,1,1,name='test_conv12_2')
-             .max_pool(4,4,4,4,padding='VALID',name='abs_pool3'))
-        #concat abs_conv and conv
-        (self.feed('conv5_3','abs_pool3')
-             .concat(axis=3,name='myconcat'))
+
+
         #========= RPN ============
-        '''
+        
         (self.feed('conv5_3')
              .conv(3,3,512,1,1,name='rpn_conv/3x3'))
-        '''
-        (self.feed('myconcat')
-             .conv(3,3,512,1,1,name='rpn_conv/3x3'))
+
         #(self.feed('rpn_conv/3x3').Bilstm(512,128,512,name='lstm_o'))
         (self.feed('rpn_conv/3x3').regress(512,1 * 2, name='rpn_cls_score'))
         (self.feed('rpn_conv/3x3').regress(512,1 * 4, name='rpn_bbox_pred'))
@@ -208,7 +192,7 @@ class VGGnet_train(Network):
                     print('iter: %d / %d, total loss: %.4f, model loss: %.4f, rpn_loss_cls: %.4f, lr: %f'%\
                         (iter, max_iters, total_loss_val,model_loss_val,rpn_loss_cls_val,lr.eval()))
                     print('speed: {:.3f}s / iter'.format(_diff_time))
-                if (iter+1) %200 ==0:
+                if (iter+1) %500 ==0:
                     last_snap_shot_iter=iter
                     self.snapshot(sess,iter)
 
