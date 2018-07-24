@@ -87,16 +87,19 @@ class VGGnet_train(Network):
         
         #计算box loss
         rpn_bbox_targets=self.get_output('rpn-data')[1]
-        rpn_bbox_inside_weights = self.get_output('rpn-data')[2]
-        rpn_bbox_outside_weights = self.get_output('rpn-data')[3]
+        #rpn_bbox_inside_weights = self.get_output('rpn-data')[2]
+        rpn_bbox_outside_weights = self.get_output('rpn-data')[2]
 
         rpn_bbox_pred=self.get_output('rpn_bbox_pred')
         rpn_bbox_pred = tf.gather(tf.reshape(rpn_bbox_pred, [-1, 4]), rpn_keep) # shape (N, 4)
         rpn_bbox_targets = tf.gather(tf.reshape(rpn_bbox_targets, [-1, 4]), rpn_keep)
-        rpn_bbox_inside_weights = tf.gather(tf.reshape(rpn_bbox_inside_weights, [-1, 4]), rpn_keep)
+        #rpn_bbox_inside_weights = tf.gather(tf.reshape(rpn_bbox_inside_weights, [-1, 4]), rpn_keep)
         rpn_bbox_outside_weights = tf.gather(tf.reshape(rpn_bbox_outside_weights, [-1, 4]), rpn_keep)
-        rpn_loss_box_n = tf.reduce_sum(rpn_bbox_outside_weights * self.smooth_l1_dist(
-            rpn_bbox_inside_weights * (rpn_bbox_pred - rpn_bbox_targets)), reduction_indices=[1])
+        #rpn_loss_box_n = tf.reduce_sum(rpn_bbox_outside_weights * self.smooth_l1_dist(
+            #rpn_bbox_inside_weights * (rpn_bbox_pred - rpn_bbox_targets)), reduction_indices=[1])
+        rpn_loss_box_n=tf.reduce_sum(rpn_bbox_outside_weights*self.smooth_l1_dist(
+             (rpn_bbox_pred-rpn_bbox_targets)),reduction_indices=[1])
+
         rpn_loss_box = tf.reduce_sum(rpn_loss_box_n) / (tf.reduce_sum(tf.cast(fg_keep, tf.float32)) + 1)
         #计算score和box的总的loss
         model_loss=rpn_cross_entropy+rpn_loss_box
