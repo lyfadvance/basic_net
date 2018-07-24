@@ -22,4 +22,6 @@ class Drawbox:
         text_recs=self.text_proposal_connector.get_text_lines(boxes,scores, size)
         for box in text_recs:      
             cv2.rectangle(img,(int(box[0]),int(box[1])), (int(box[2]),int(box[3])),(255,0,0),3)      
-        cv2.imwrite("1.jpg",img)
+        print(image_name)
+        image_name=os.path.basename(image_name)
+        cv2.imwrite(os.path.join('results',image_name),img)
