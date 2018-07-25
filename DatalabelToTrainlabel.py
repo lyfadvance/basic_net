@@ -35,8 +35,90 @@ def bbox_overlaps(#水平的box
                     overlaps[n,k]=iw*ih/ua
     return overlaps
 '''
+def compute_box_area(box):#box形如[len=4]或[len=8]
+    if len(box)==4:
+        return (box[2]-box[0]+1)*(box[3]-box[1]+1)
+    elif len(box)==8:
+        v1=box[0:2]-box[2:4]
+        v2=box[4:6]-box[6:8]
+
+        return np.linalg.norm(v2)*np.linalg.norm(v1)
+def compute_box_overlaps(anchor,gt_box):#anchor形如[len=4],gt_box形如[len=8].不采用IOU的形式.因为anchor和gt_box的差距很大.计算overlap/anchor的大小
+    #计算重叠的像素值有点困难，现在实现重叠返回1,不重叠返回0
+    
+    #计算gt_box的中心
+    gt_box_v1=gt_box[0:2]
+    gt_box_v3=gt_box[4:6]
+    
+    anchor_v1=anchor[0:2]
+    anchor_v2=anchor[2:4]
+
+    gt_box_center=(gt_box_v3+gt_box_v1)/2
+    anchor_center=(anchor_v2+anchor_v1)/2
+    
+    #计算anchor和gt_box的偏移向量
+    v_offset=anchor_center-gt_box_center
+    #print("anchor偏移",v_offset)
+    #计算gt_box的短轴向量
+    gt_box_v2=gt_box[2:4]
+    gt_box_v2_v3_center=(gt_box_v2+gt_box_v3)/2
+    if gt_box_v2_v3_center[1]>=gt_box_center[1]:#保证向量角度在0-180
+        v_axis=gt_box_v2_v3_center-gt_box_center
+    else:
+        v_axis=gt_box_center-gt_box_v2_v3_center
+    #print("短轴向量",v_axis)
+    #计算anchor中心相对于gt_box中心在短轴上的偏移
+    cos_value=np.abs(np.sum(v_offset*v_axis)/(np.linalg.norm(v_offset)*np.linalg.norm(v_axis)))
+    v_heighth_offset=np.linalg.norm(v_offset)*cos_value
+    v_width_offset=np.linalg.norm(v_offset)*np.sqrt(1-cos_value*cos_value)
+    #print("高度偏移",v_heighth_offset) 
+    #计算gt_box左上角相对于gt_box中心在短轴上的偏移
+    gt_v_offset=gt_box_v1-gt_box_center
+
+    gt_cos_value=np.abs(np.sum(gt_v_offset*v_axis)/(np.linalg.norm(gt_v_offset)*np.linalg.norm(v_axis)))
+    gt_v_heighth_offset=np.linalg.norm(gt_v_offset)*gt_cos_value
+    gt_v_width_offset=np.linalg.norm(gt_v_offset)*np.sqrt(1-gt_cos_value*gt_cos_value)
+    #print("gt高度偏移",gt_v_heighth_offset) 
+    #计算anchor_center是否在gt_box里
+    if v_width_offset<=gt_v_width_offset and v_heighth_offset<=gt_v_heighth_offset:
+        label=1
+        #计算回归值
+        '''
+        if np.sum(v_axis*v_offset)>0:#即偏移同向
+            dy=-v_heighth_offset
+        else:
+            dy=v_heighth_offset
+        #计算angle
+        cos_angle=v_axis[0]/np.linalg.norm(v_axis)
+        #print(cos_angle)
+        angle=np.arccos(cos_angle)
+        angle=angle/(np.pi*2)*360
+        #计算高度
+        dh=np.linalg.norm(v_axis)
+        print(label,dy,dh,angle)
+        '''
+    else:
+        
+        label=0
+        '''
+        dh=0
+        dy=0
+        angle=0
+        '''
+    #return np.array([label,dh,dy,angle])
+    return label
+    
+        
+
+
 def bbox_overlaps(anchors,gt_boxes):#,anchors形如[[len=4]..[]],gt_boxes形如[[len=8]..[]]
-    return overlaps #overlaps形如[[]..[]],shape为[len(anchors),len(gt_boxes)]
+    K=anchors.shape[0]
+    N=gt_boxes.shape[0]
+    overlaps=np.zeros((K,N),dtype=DTYPE)
+    for k in range(K):
+        for n in range(N):
+            overlaps[k,n]=compute_box_overlaps(anchors[k],gt_boxes[n])
+    return overlaps #overlaps形如[[]..[]],shape为[len(anchors),len(gt_boxes),4]
 def compute_box_angle_height(box):#box形如[len=8]
     return angle,height
 def DatalabelToTrainlabel_layer(rpn_cls_score,gt_boxes,im_info):
@@ -132,7 +214,7 @@ def DatalabelToTrainlabel_layer(rpn_cls_score,gt_boxes,im_info):
 
     # bbox_outside_weights
     bbox_outside_weights = bbox_outside_weights \
-        .reshape((1, height, width, A * 4))
+        .reshape((1, height, width, A * 3))
     rpn_bbox_outside_weights = bbox_outside_weights
 
     ##计算score label和边框回归的label
@@ -175,12 +257,85 @@ def _compute_targets(ex_rois, gt_rois):#gt_rois[i]是所有gt_box中，与ex_roi
 ###########################################
 #计算边框回归的label
 ###########################################
+def compute_box_regress(anchor,gt_box):#anchor形如[len=4],gt_box形如[len=8].不采用IOU的形式.因为anchor和gt_box的差距很大.计算overlap/anchor的大小
+    #计算重叠的像素值有点困难，现在实现重叠返回1,不重叠返回0
+    
+    #计算gt_box的中心
+    gt_box_v1=gt_box[0:2]
+    gt_box_v3=gt_box[4:6]
+    
+    anchor_v1=anchor[0:2]
+    anchor_v2=anchor[2:4]
+
+    gt_box_center=(gt_box_v3+gt_box_v1)/2
+    anchor_center=(anchor_v2+anchor_v1)/2
+    
+    #计算anchor和gt_box的偏移向量
+    v_offset=anchor_center-gt_box_center
+    #print("anchor偏移",v_offset)
+    #计算gt_box的短轴向量
+    gt_box_v2=gt_box[2:4]
+    gt_box_v2_v3_center=(gt_box_v2+gt_box_v3)/2
+    if gt_box_v2_v3_center[1]>=gt_box_center[1]:#保证向量角度在0-180
+        v_axis=gt_box_v2_v3_center-gt_box_center
+    else:
+        v_axis=gt_box_center-gt_box_v2_v3_center
+    #print("短轴向量",v_axis)
+    #计算anchor中心相对于gt_box中心在短轴上的偏移
+    cos_value=np.abs(np.sum(v_offset*v_axis)/(np.linalg.norm(v_offset)*np.linalg.norm(v_axis)))
+    v_heighth_offset=np.linalg.norm(v_offset)*cos_value
+    v_width_offset=np.linalg.norm(v_offset)*np.sqrt(1-cos_value*cos_value)
+    #print("高度偏移",v_heighth_offset) 
+    #计算gt_box左上角相对于gt_box中心在短轴上的偏移
+    gt_v_offset=gt_box_v1-gt_box_center
+
+    gt_cos_value=np.abs(np.sum(gt_v_offset*v_axis)/(np.linalg.norm(gt_v_offset)*np.linalg.norm(v_axis)))
+    gt_v_heighth_offset=np.linalg.norm(gt_v_offset)*gt_cos_value
+    gt_v_width_offset=np.linalg.norm(gt_v_offset)*np.sqrt(1-gt_cos_value*gt_cos_value)
+    #print("gt高度偏移",gt_v_heighth_offset) 
+    #计算anchor_center是否在gt_box里
+    if v_width_offset<=gt_v_width_offset and v_heighth_offset<=gt_v_heighth_offset:
+        label=1
+        #计算回归值
+        
+        if np.sum(v_axis*v_offset)>0:#即偏移同向
+            dy=-v_heighth_offset
+        else:
+            dy=v_heighth_offset
+        #计算angle
+        cos_angle=v_axis[0]/np.linalg.norm(v_axis)
+        #print(cos_angle)
+        angle=np.arccos(cos_angle)
+        angle=angle/(np.pi*2)*360
+        #计算高度
+        dh=np.linalg.norm(v_axis)
+        print(label,dy,dh,angle)
+        
+    else:
+        assert 1!=1,'计算回归的时候,label!=1'
+        label=0
+        '''
+        dh=0
+        dy=0
+        angle=0
+        '''
+    #return np.array([label,dh,dy,angle])
+    return np.array([dh,dy,angle])
 def bbox_transform(ex_rois,gt_rois):#ex_rois形如[[len=4]..[]],gt_rois形如[[len=8]...[]]
     #targets_dy高度回归值,形如[len=len(ex_rois)]
     #targets_dh高度回归值,形如[len=len(ex_rois)]
     #targets_angle,角度回归值,形如[len=len(ex_rois)]
-
-    targets=np.vstack(targets_dy,targets_dh,targets_angle).transpose()
+    '''
+    targets_dy=np.zeros((len(ex_rois),))
+    targets_dh=np.zeros((len(ex_rois),))
+    targets_angle=np.zeros((len(ex_rois),))
+    '''
+    targets=np.zeros((len(ex_rois),3))
+    for i in range(len(ex_rois)):
+        target=compute_box_regress(ex_rois[i],gt_rois[i])
+        targets[i]=target
+    return targets
+    #targets=np.vstack(targets_dy,targets_dh,targets_angle).transpose()
 '''
 def bbox_transform(ex_rois, gt_rois):
     """
@@ -215,6 +370,7 @@ def bbox_transform(ex_rois, gt_rois):
         (targets_dx, targets_dy, targets_dw, targets_dh)).transpose()
 
     return targets
+'''
 '''
 #########################
 #    根据网络输出，计算box坐标
@@ -264,7 +420,26 @@ def clip_boxes(boxes, im_shape):
     # y2 < im_shape[0]
     boxes[:, 3::4] = np.maximum(np.minimum(boxes[:, 3::4], im_shape[0] - 1), 0)
     return boxes
-def compute_box_angle(box):#box形如[左上,左下,右上，右下],且左上是,以长宽中长为方向,x最小的坐标
+'''
+'''
+def box_to_normalform(box):#将box的坐标转化为标准形式,box的形式为按照圆周旋转，也不是任意的
+    v1=box[0:2]
+    v2=box[2:4]
+    v3=box[4:6]
+    v4=box[6:8]
+    start=0
+    v1_v2=np.linalg.norm(v2-v1)
+    v2_v3=np.linalg.norm(v3-v2)
+    if v2_v3>v1_v2:#v1_v2为短边
+        if v1[0]+v2[0]>v3[0]+v4[0]:#v1_v2在左边
+            if v2[1]>v1[0]:#v2在上边
+                start=2
+            else :
+                start=1
+        else:
+            if
+'''
+def compute_box_angle(box):#box形如[左上,左下,右上，右下],且左上是,以长宽中长为方向,且从左指向右的方向的左上
     x1=box[0]
     y1=box[1]
     x2=box[2]
@@ -272,20 +447,13 @@ def compute_box_angle(box):#box形如[左上,左下,右上，右下],且左上�
     #计算角度和高度
     return angle,height
 if __name__=='__main__':
-    rpn_cls_score=np.zeros((1,50,45,3))
-    im_info=np.array([[800,720]])
-    gt_boxes=np.array([[16,0,31,15,1]])
-    labels=anchor_target_layer(rpn_cls_score,gt_boxes,im_info)
-    print(labels.reshape(50,45))
-    labels=labels.reshape(50,45)
-    s=0
-    for i in range(50):
-        for j in range(45):
-            if labels[i,j]==0:
-                s=s+1
-    print(s)
-
-    gt_boxes=np.array([[5,0,18,18,1]])
-    labels=anchor_target_layer(rpn_cls_score,gt_boxes,im_info)
-    print(labels.reshape(50,45))
+    box=np.array([[0,31,0,0,63,0,63,31]])
+    anchor=np.array([[0,0,15,15],[0,16,15,31]])
+    #compute_box_overlaps(anchor,box)
+    overlaps=bbox_overlaps(anchor,box)
+    print(overlaps)
+    
+    boxs=np.array([[0,31,0,0,63,0,63,31],[0,31,0,0,63,0,63,31]])
+    results=_compute_targets(anchor,boxs)
+    print(results)
 #############还没有测试边框回归的计算,测试了score的计算
