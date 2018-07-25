@@ -172,7 +172,7 @@ class Network(object):
     def DatalabelToTrainlabel_layer(self,input,name):
         with tf.variable_scope(name) as scope:
             # 'rpn_cls_score', 'gt_boxes', 'gt_ishard', 'dontcare_areas', 'im_info'
-            rpn_labels,rpn_bbox_targets,rpn_bbox_inside_weights,rpn_bbox_outside_weights = \
+            rpn_labels,rpn_bbox_targets,rpn_bbox_outside_weights = \
                 tf.py_func(DatalabelToTrainlabel_layer,
                            [input[0],input[1],input[2]],
                            [tf.float32,tf.float32,tf.float32])
