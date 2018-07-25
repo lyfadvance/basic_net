@@ -54,7 +54,7 @@ class VGGnet_train(Network):
 
         #(self.feed('rpn_conv/3x3').Bilstm(512,128,512,name='lstm_o'))
         (self.feed('rpn_conv/3x3').regress(512,1 * 2, name='rpn_cls_score'))
-        (self.feed('rpn_conv/3x3').regress(512,1 * 4, name='rpn_bbox_pred'))
+        (self.feed('rpn_conv/3x3').regress(512,1 * 3, name='rpn_bbox_pred'))
         #(self.feed('lstm_o').lstm_fc(512,len(anchor_scales) * 10 * 2,name='rpn_cls_score'))
 
         # generating training labels on the fly
@@ -91,10 +91,10 @@ class VGGnet_train(Network):
         rpn_bbox_outside_weights = self.get_output('rpn-data')[2]
 
         rpn_bbox_pred=self.get_output('rpn_bbox_pred')
-        rpn_bbox_pred = tf.gather(tf.reshape(rpn_bbox_pred, [-1, 4]), rpn_keep) # shape (N, 4)
-        rpn_bbox_targets = tf.gather(tf.reshape(rpn_bbox_targets, [-1, 4]), rpn_keep)
+        rpn_bbox_pred = tf.gather(tf.reshape(rpn_bbox_pred, [-1, 3]), rpn_keep) # shape (N, 4)
+        rpn_bbox_targets = tf.gather(tf.reshape(rpn_bbox_targets, [-1, 3]), rpn_keep)
         #rpn_bbox_inside_weights = tf.gather(tf.reshape(rpn_bbox_inside_weights, [-1, 4]), rpn_keep)
-        rpn_bbox_outside_weights = tf.gather(tf.reshape(rpn_bbox_outside_weights, [-1, 4]), rpn_keep)
+        rpn_bbox_outside_weights = tf.gather(tf.reshape(rpn_bbox_outside_weights, [-1, 3]), rpn_keep)
         #rpn_loss_box_n = tf.reduce_sum(rpn_bbox_outside_weights * self.smooth_l1_dist(
             #rpn_bbox_inside_weights * (rpn_bbox_pred - rpn_bbox_targets)), reduction_indices=[1])
         rpn_loss_box_n=tf.reduce_sum(rpn_bbox_outside_weights*self.smooth_l1_dist(
@@ -207,4 +207,4 @@ if __name__=='__main__':
     print("_______________________",output_dir)
     log_dir=os.path.join(DATA_DIR,'log')
     pretrained_model='VGG_imagenet.npy'
-    net.train(imdb,output_dir,log_dir,pretrained_model,restore=True)
+    net.train(imdb,output_dir,log_dir,pretrained_model,restore=False)
