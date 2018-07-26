@@ -312,13 +312,12 @@ def compute_box_regress(anchor,gt_box):#anchor形如[len=4],gt_box形如[len=8].
         print(label,dy,dh,angle)
         
     else:
-        assert 1!=1,'计算回归的时候,label!=1'
+        #该anchor没有与任何gt重叠
+        #assert 1!=1,'计算回归的时候,label!=1'
         label=0
-        '''
         dh=0
         dy=0
         angle=0
-        '''
     #return np.array([label,dh,dy,angle])
     return np.array([dh,dy,angle])
 def bbox_transform(ex_rois,gt_rois):#ex_rois形如[[len=4]..[]],gt_rois形如[[len=8]...[]]
