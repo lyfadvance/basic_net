@@ -63,3 +63,10 @@ End to end
 先放弃倾斜的文本，专门打coco比赛
 ### idea
 端对端检测识别,需要nms可训练，如何把nms放在卷积层里面
+
+## 2018.7.27
+### 论文
+### 任务
+完成了conloss,regloss,前二层mask.但是代码好像有问题，没有feed mask,明天去看一下
+### idea
+用gather选取score>0.7的,用lstm完成nms算法。lstm先编码所有的anchor，然后解码成目标box
