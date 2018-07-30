@@ -14,6 +14,7 @@ def TrainlabelToDatalabel_layer(rpn_cls_prob_reshape,rpn_bbox_pred,im_info):
     scores = np.reshape(np.reshape(rpn_cls_prob_reshape, [1, height, width, _num_anchors, 2])[:,:,:,:,1],
                         [1, height, width, _num_anchors])
     scores=np.reshape(scores,[height,width])
+    print(scores)
 
 ####################################################
     #测试ctpn构造的anchor方法,然后实现自己的方法
@@ -35,7 +36,7 @@ def TrainlabelToDatalabel_layer(rpn_cls_prob_reshape,rpn_bbox_pred,im_info):
     proposals=bbox_transform_inv(all_anchors,bbox_deltas)
     proposals=clip_boxes(proposals,im_info[:2])#将所有的proposal修建一下，超出图像范围的将会被修剪掉
     #ctpn代码中还做了一些过滤,这里没有实现
-    keep_inds=np.where(scores>0.7)[0]
+    keep_inds=np.where(scores>0.6)[0]
     proposals, scores=proposals[keep_inds], scores[keep_inds]
     sorted_indices=np.argsort(scores.ravel())[::-1]
     proposals, scores=proposals[sorted_indices], scores[sorted_indices]
@@ -53,6 +54,7 @@ def TrainlabelToDatalabel_layer(rpn_cls_prob_reshape,rpn_bbox_pred,im_info):
    # print(proposals)
     #构造nms的输入
     nms_input=np.hstack((proposals,scores))
+    print("-----------------------",nms_input.shape)
     keeps=gpu_nms(nms_input,0.6)
     print(keeps)
     return nms_input[keeps]

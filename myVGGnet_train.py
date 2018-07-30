@@ -30,6 +30,13 @@ class VGGnet_train(Network):
         (self.feed('data')
              .conv(3, 3, 64, 1, 1, name='conv1_1')
              .conv(3, 3, 64, 1, 1, name='conv1_2')
+             .conv(3,3,3,1,1,name='convm_1')
+             )
+        (self.feed('data','convm_1')
+             .mask(name='mask')
+             .reuse_conv(3,3,64,1,1,'conv1_1',name='conv01_1')
+             .reuse_conv(3,3,64,1,1,'conv1_2',name='conv01_2')
+             
              .max_pool(2, 2, 2, 2, padding='VALID', name='pool1')
              .conv(3, 3, 128, 1, 1, name='conv2_1')
              .conv(3, 3, 128, 1, 1, name='conv2_2')
@@ -53,8 +60,10 @@ class VGGnet_train(Network):
              .conv(3,3,512,1,1,name='rpn_conv/3x3'))
 
         #(self.feed('rpn_conv/3x3').Bilstm(512,128,512,name='lstm_o'))
-        (self.feed('rpn_conv/3x3').regress(512,1 * 2, name='rpn_cls_score'))
-        (self.feed('rpn_conv/3x3').regress(512,1 * 3, name='rpn_bbox_pred'))
+        (self.feed('rpn_conv/3x3').regress(512,1 * 2, name='rpn_cls_score')
+                                  .conloss_conv(3,3,2,3,3,name='conloss'))
+        (self.feed('rpn_conv/3x3').regress(512,1 * 4, name='rpn_bbox_pred')
+                                  .regconloss_conv(3,3,2,3,3,name='regconloss'))
         #(self.feed('lstm_o').lstm_fc(512,len(anchor_scales) * 10 * 2,name='rpn_cls_score'))
 
         # generating training labels on the fly
@@ -72,6 +81,11 @@ class VGGnet_train(Network):
 #计算loss
 ###################################################
     def build_loss(self):
+        conloss=tf.reshape(self.get_output('conloss'),[-1])
+        conloss=tf.reduce_mean(tf.square(conloss))
+        regconloss=tf.reshape(self.get_output('regconloss'),[-1])
+        regconloss=tf.reduce_mean(tf.square(regconloss))
+
         rpn_cls_score=tf.reshape(self.get_output('rpn_cls_score_reshape'),[-1,2])
         rpn_label=tf.reshape(self.get_output('rpn-data')[0],[-1])
         ##收集不是dont care的label
@@ -87,26 +101,23 @@ class VGGnet_train(Network):
         
         #计算box loss
         rpn_bbox_targets=self.get_output('rpn-data')[1]
-        #rpn_bbox_inside_weights = self.get_output('rpn-data')[2]
-        rpn_bbox_outside_weights = self.get_output('rpn-data')[2]
+        rpn_bbox_inside_weights = self.get_output('rpn-data')[2]
+        rpn_bbox_outside_weights = self.get_output('rpn-data')[3]
 
         rpn_bbox_pred=self.get_output('rpn_bbox_pred')
-        rpn_bbox_pred = tf.gather(tf.reshape(rpn_bbox_pred, [-1, 3]), rpn_keep) # shape (N, 4)
-        rpn_bbox_targets = tf.gather(tf.reshape(rpn_bbox_targets, [-1, 3]), rpn_keep)
-        #rpn_bbox_inside_weights = tf.gather(tf.reshape(rpn_bbox_inside_weights, [-1, 4]), rpn_keep)
-        rpn_bbox_outside_weights = tf.gather(tf.reshape(rpn_bbox_outside_weights, [-1, 3]), rpn_keep)
-        #rpn_loss_box_n = tf.reduce_sum(rpn_bbox_outside_weights * self.smooth_l1_dist(
-            #rpn_bbox_inside_weights * (rpn_bbox_pred - rpn_bbox_targets)), reduction_indices=[1])
-        rpn_loss_box_n=tf.reduce_sum(rpn_bbox_outside_weights*self.smooth_l1_dist(
-             (rpn_bbox_pred-rpn_bbox_targets)),reduction_indices=[1])
-
+        rpn_bbox_pred = tf.gather(tf.reshape(rpn_bbox_pred, [-1, 4]), rpn_keep) # shape (N, 4)
+        rpn_bbox_targets = tf.gather(tf.reshape(rpn_bbox_targets, [-1, 4]), rpn_keep)
+        rpn_bbox_inside_weights = tf.gather(tf.reshape(rpn_bbox_inside_weights, [-1, 4]), rpn_keep)
+        rpn_bbox_outside_weights = tf.gather(tf.reshape(rpn_bbox_outside_weights, [-1, 4]), rpn_keep)
+        rpn_loss_box_n = tf.reduce_sum(rpn_bbox_outside_weights * self.smooth_l1_dist(
+            rpn_bbox_inside_weights * (rpn_bbox_pred - rpn_bbox_targets)), reduction_indices=[1])
         rpn_loss_box = tf.reduce_sum(rpn_loss_box_n) / (tf.reduce_sum(tf.cast(fg_keep, tf.float32)) + 1)
         #计算score和box的总的loss
-        model_loss=rpn_cross_entropy+rpn_loss_box
+        model_loss=rpn_cross_entropy+rpn_loss_box+5*conloss+5*regconloss
         regularization_losses=tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
         total_loss=tf.add_n(regularization_losses)+model_loss
 
-        return total_loss,model_loss,rpn_cross_entropy
+        return total_loss,model_loss,rpn_cross_entropy,rpn_loss_box,conloss,regconloss
 
 #########################################################
 #训练网络
@@ -139,10 +150,13 @@ class VGGnet_train(Network):
                                                  graph=tf.get_default_graph(),
                                                  flush_secs=5)
             #开始会话
-            total_loss,model_loss,rpn_cross_entropy=self.build_loss()
+            total_loss,model_loss,rpn_cross_entropy,rpn_loss_box,conloss,regconloss=self.build_loss()
             tf.summary.scalar('rpn_cls_loss',rpn_cross_entropy)
             tf.summary.scalar('model_loss',model_loss)
             tf.summary.scalar('total_loss',total_loss)
+            tf.summary.scalar('rpn_loss_box',rpn_loss_box)
+            tf.summary.scalar('conloss',conloss)
+            tf.summary.scalar('regconloss',regconloss)
             summary_op=tf.summary.merge_all()
 
             lr=tf.Variable(LEARNING_RATE,trainable=False)

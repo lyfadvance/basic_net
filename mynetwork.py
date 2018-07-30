@@ -84,6 +84,44 @@ class Network(object):
         assert padding in ('SAME', 'VALID')
     
     @layer
+    def conloss_conv(self, input, k_h, k_w, c_o, s_h, s_w, name, biased=True,relu=True, padding=DEFAULT_PADDING, trainable=True):
+        """ contribution by miraclebiu, and biased option"""
+        self.validate_padding(padding)
+        c_i = input.get_shape()[-1]
+        convolve = lambda i, k: tf.nn.conv2d(i, k, [1, s_h, s_w, 1], padding=padding)
+        with tf.variable_scope(name) as scope:
+            value=np.zeros((3,3,2,2))
+            value[:,:,0,0]=np.zeros((3,3))
+            value[:,:,1,0]=np.array([[0,0,0],[-0.5,1,-0.5],[0,0,0]])
+            value[:,:,0,1]=np.zeros((3,3))
+            value[:,:,1,1]=np.array([[0,-0.5,0],[0,1,0],[0,-0.5,0]])
+            
+            init_weights=tf.constant_initializer(value)
+            kernel = self.make_var('weights', [k_h, k_w, 2, 2], init_weights, False)
+            return convolve(input,kernel)
+
+    @layer
+    def regconloss_conv(self, input, k_h, k_w, c_o, s_h, s_w, name, biased=True,relu=True, padding=DEFAULT_PADDING, trainable=True):
+        """ contribution by miraclebiu, and biased option"""
+        self.validate_padding(padding)
+        c_i = input.get_shape()[-1]
+        convolve = lambda i, k: tf.nn.conv2d(i, k, [1, s_h, s_w, 1], padding=padding)
+        with tf.variable_scope(name) as scope:
+            value=np.zeros((3,3,4,2))
+            value[:,:,0,0]=np.array([[0,0,0],[-0.5,1,-0.5],[0,0,0]])
+            value[:,:,1,0]=np.array([[0,0,0],[-0.5,1,-0.5],[0,0,0]])
+            value[:,:,2,0]=np.array([[0,0,0],[-0.5,1,-0.5],[0,0,0]])
+            value[:,:,3,0]=np.array([[0,0,0],[-0.5,1,-0.5],[0,0,0]])
+            value[:,:,0,1]=np.array([[0,-0.5,0],[0,1,0],[0,-0.5,0]])
+            value[:,:,1,1]=np.array([[0,-0.5,0],[0,1,0],[0,-0.5,0]])
+            value[:,:,2,1]=np.array([[0,-0.5,0],[0,1,0],[0,-0.5,0]])
+            value[:,:,3,1]=np.array([[0,-0.5,0],[0,1,0],[0,-0.5,0]])
+            
+            init_weights=tf.constant_initializer(value)
+            kernel = self.make_var('weights', [k_h, k_w, 4, 2], init_weights, False)
+            return convolve(input,kernel)
+
+    @layer
     def conv(self, input, k_h, k_w, c_o, s_h, s_w, name, biased=True,relu=True, padding=DEFAULT_PADDING, trainable=True):
         """ contribution by miraclebiu, and biased option"""
         self.validate_padding(padding)
@@ -126,6 +164,31 @@ class Network(object):
                 return tf.abs(tf.nn.bias_add(conv,biases,name=scope.name))
             else:
                 print("-------------------error")
+    @layer
+    def reuse_conv(self,input,k_h,k_w,c_o,s_h,s_w,scope_name,name,biased=True,relu=True,padding=DEFAULT_PADDING,trainable=True):
+        self.validate_padding(padding)
+        c_i=input.get_shape()[-1]
+        convolve=lambda i,k:tf.nn.conv2d(i,k,[1,s_h,s_w,1],padding=padding)
+        with tf.variable_scope(scope_name,reuse=True) as scope:
+            kernel=tf.get_variable('weights',[k_h,k_w,c_i,c_o])
+            if biased:
+                #biases = self.make_var('biases', [c_o], init_biases, trainable)
+                biases=tf.get_variable('biases',[c_o])
+                conv = convolve(input, kernel)
+                if relu:
+                    bias = tf.nn.bias_add(conv, biases)
+                    return tf.nn.relu(bias, name=scope.name)
+                return tf.nn.bias_add(conv, biases, name=scope.name)
+            else:
+                conv = convolve(input, kernel)
+                if relu:
+                    return tf.nn.relu(conv, name=scope.name)
+                return conv
+
+    @layer
+    def mask(self,inputs,name):
+        assert len(inputs)==2
+        return tf.multiply(inputs[0],inputs[1])
     @layer
     def concat(self, inputs, axis, name):
         with tf.variable_scope(name) as scope:
@@ -172,18 +235,18 @@ class Network(object):
     def DatalabelToTrainlabel_layer(self,input,name):
         with tf.variable_scope(name) as scope:
             # 'rpn_cls_score', 'gt_boxes', 'gt_ishard', 'dontcare_areas', 'im_info'
-            rpn_labels,rpn_bbox_targets,rpn_bbox_outside_weights = \
+            rpn_labels,rpn_bbox_targets,rpn_bbox_inside_weights,rpn_bbox_outside_weights = \
                 tf.py_func(DatalabelToTrainlabel_layer,
                            [input[0],input[1],input[2]],
-                           [tf.float32,tf.float32,tf.float32])
+                           [tf.float32,tf.float32,tf.float32,tf.float32])
 
             rpn_labels = tf.convert_to_tensor(tf.cast(rpn_labels,tf.int32), name = 'rpn_labels') # shape is (1 x H x W x A, 2)
             rpn_bbox_targets = tf.convert_to_tensor(rpn_bbox_targets, name = 'rpn_bbox_targets') # shape is (1 x H x W x A, 4)
-            #rpn_bbox_inside_weights = tf.convert_to_tensor(rpn_bbox_inside_weights , name = 'rpn_bbox_inside_weights') # shape is (1 x H x W x A, 4)
+            rpn_bbox_inside_weights = tf.convert_to_tensor(rpn_bbox_inside_weights , name = 'rpn_bbox_inside_weights') # shape is (1 x H x W x A, 4)
             rpn_bbox_outside_weights = tf.convert_to_tensor(rpn_bbox_outside_weights , name = 'rpn_bbox_outside_weights') # shape is (1 x H x W x A, 4)
 
 
-            return rpn_labels, rpn_bbox_targets, rpn_bbox_outside_weights
+            return rpn_labels, rpn_bbox_targets, rpn_bbox_inside_weights, rpn_bbox_outside_weights
     @layer
     def TrainlabelToDatalabel_layer(self,input,name):
         with tf.variable_scope(name) as scope:
@@ -191,7 +254,7 @@ class Network(object):
             rpn_rois=rpn_rois[0]
             rpn_rois=tf.convert_to_tensor(rpn_rois,name='rpn_rois')
             self.layers['rpn_rois']=rpn_rois
-            return rpn_rois
+            return rpn_rois 
     '''
     @layer
     def anchor_target_layer(self, input, _feat_stride, anchor_scales, name):
