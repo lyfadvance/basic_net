@@ -80,7 +80,7 @@ if __name__=='__main__':
     roidb=[_load_pascal_annotation(index) for index in image_index]
     for i in range(len(roidb)):
         new_chain=huanyuan(roidb[i])
-        with open('annotations/'+image_index[i]+'txt','w') as f:
+        with open('annotations/'+image_index[i]+'.txt','w') as f:
             for j in range(len(new_chain)):
                 f.write(str(new_chain[j][0]))
                 f.write(',')
