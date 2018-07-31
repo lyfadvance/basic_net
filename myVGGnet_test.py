@@ -98,6 +98,31 @@ class VGGnet_test(Network):
     def load_image(self):
         im_names=glob.glob(os.path.join(DATA_DIR,'test','*.jpg'))
         return im_names
+    ##评价
+    def evaluation(self):
+        sess=self.load_model()
+        im_names=self.load_image()
+        for im_name in im_names:
+            print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
+            print(('Demo for {:s}'.format(im_name)))
+            result=self.test_single(sess,im_name)
+            rois=result[0]
+            
+            tps=rois[:,0:4]
+            scores=rois[:,4]
+            Draw=Drawbox()
+            boxes=Draw.draw_boxes(im_name,tps,1,scores,draw=False)
+            basename=os.path.basename(im_name)
+            with open('results/'+'res'+'_'+basename+'.txt','w') as f:
+                fo j in range(len(boxes)):
+                    f.write(str(boxes[j][0]))
+                    f.write(',')
+                    f.write(str(boxes[j][1]))
+                    f.write(',')
+                    f.write(str(boxes[j][2]))
+                    f.write(',')
+                    f.write(str(boxes[j][3]))
+                    f.write('\n')
     ##测试
     def test(self):
         sess=self.load_model()
