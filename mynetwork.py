@@ -120,7 +120,7 @@ class Network(object):
             init_weights=tf.constant_initializer(value)
             kernel = self.make_var('weights', [k_h, k_w, 4, 2], init_weights, False)
             return convolve(input,kernel)
-
+    '''
     @layer
     def conv(self, input, k_h, k_w, c_o, s_h, s_w, name, biased=True,relu=True, padding=DEFAULT_PADDING, trainable=True):
         """ contribution by miraclebiu, and biased option"""
@@ -144,6 +144,34 @@ class Network(object):
                 conv = convolve(input, kernel)
                 if relu:
                     return tf.nn.relu(conv, name=scope.name)
+                return conv
+    '''
+    @layer #这个版本加入了dilation机制
+    def conv(self, input, k_h, k_w, c_o, s_h, s_w, name, rate=1, biased=True, relu=True, padding=DEFAULT_PADDING, trainable=True, initializer=None):
+        """ contribution by miraclebiu, and biased option"""
+        self.validate_padding(padding)
+        c_i = input.get_shape()[-1]
+        convolve = lambda i, k: tf.nn.convolution(
+            i, k, padding=padding, strides=[s_h, s_w], dilation_rate=[rate, rate])
+        with tf.variable_scope(name) as scope:
+
+            # init_weights = tf.truncated_normal_initializer(0.0, stddev=0.001)
+            init_weights = tf.zeros_initializer() if initializer is 'zeros' else tf.contrib.layers.variance_scaling_initializer(
+                factor=0.01, mode='FAN_AVG', uniform=False)
+            init_biases = tf.constant_initializer(0.0)
+            kernel = self.make_var('weights', [k_h, k_w, c_i, c_o], init_weights, trainable,
+                                   regularizer=self.l2_regularizer(cfg.TRAIN.WEIGHT_DECAY))
+            if biased:
+                biases = self.make_var('biases', [c_o], init_biases, trainable)
+                conv = convolve(input, kernel)
+                if relu:
+                    bias = tf.nn.bias_add(conv, biases)
+                    return tf.nn.relu(bias)
+                return tf.nn.bias_add(conv, biases)
+            else:
+                conv = convolve(input, kernel)
+                if relu:
+                    return tf.nn.relu(conv)
                 return conv
     @layer
     def abs_conv(self,input,k_h,k_w,c_o,s_h,s_w,name,biased=True,relu=True,padding=DEFAULT_PADDING,trainable=True):
