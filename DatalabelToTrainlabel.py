@@ -3,6 +3,7 @@ import numpy.random as npr
 DTYPE=np.float
 ##这个函数是用来将标注的label转化成训练时的label
 ##通过tf.py_func的形式进行调用
+'''
 def bbox_overlaps(#水平的box
      boxes,
      query_boxes):
@@ -32,6 +33,40 @@ def bbox_overlaps(#水平的box
                         box_area-iw*ih
                     )
                     overlaps[n,k]=iw*ih/ua
+    return overlaps
+'''
+def bbox_overlaps(#水平的box
+     boxes,
+     query_boxes):
+
+    N=boxes.shape[0]
+    K=query_boxes.shape[0]
+    overlaps=np.zeros((N,K),dtype=DTYPE)
+    for k in range(K):
+        box_area=(
+            (query_boxes[k,2]-query_boxes[k,0]+1)*
+            (query_boxes[k,3]-query_boxes[k,1]+1)
+        )
+        for n in range(N):
+            iw=(
+                min(boxes[n,2],query_boxes[k,2])-
+                max(boxes[n,0],query_boxes[k,0])+1
+            )
+            if iw>0:
+                ih=(
+                    min(boxes[n,3],query_boxes[k,3])-
+                    max(boxes[n,1],query_boxes[k,1])+1
+                )
+                if ih>0:
+                    #有重叠区域
+                    '''
+                    ua=float(
+                        (boxes[n,2]-boxes[n,0]+1)*
+                        (boxes[n,3]-boxes[n,1]+1)+
+                        box_area-iw*ih
+                    )
+                    '''
+                    overlaps[n,k]=1
     return overlaps
 def DatalabelToTrainlabel_layer(rpn_cls_score,gt_boxes,im_info):#,rpn_cls_score形如[N,H,W,2],gt_boxes为list,shape[batch_num,boxes_num,4]
     #这里只有一个anchor,且代码与多个anchor的不兼容
