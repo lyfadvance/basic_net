@@ -13,15 +13,25 @@ class Drawbox:
             self.text_proposal_connector=TextProposalConnector()
         elif self.mode == "O":
             self.text_proposal_connector=TextProposalConnectorOriented()
-    def draw_boxes(self,image_name,boxes,scale,scores):
-        img=cv2.imread(image_name)
-        size=[]
-        size.append(img.shape[0])
-        size.append(img.shape[1])
-        #keep_inds=self.filter_boxes(text_recs)
-        text_recs=self.text_proposal_connector.get_text_lines(boxes,scores, size)
-        for box in text_recs:      
-            cv2.rectangle(img,(int(box[0]),int(box[1])), (int(box[2]),int(box[3])),(255,0,0),3)      
-        print(image_name)
-        image_name=os.path.basename(image_name)
-        cv2.imwrite(os.path.join('results',image_name),img)
+    
+    def draw_boxes(self,image_name,boxes,scale,scores,draw=True):
+        if draw:
+            img=cv2.imread(image_name)
+            size=[]
+            size.append(img.shape[0])
+            size.append(img.shape[1])
+            #keep_inds=self.filter_boxes(text_recs)
+            text_recs=self.text_proposal_connector.get_text_lines(boxes,scores, size)
+            for box in text_recs:      
+                cv2.rectangle(img,(int(box[0]),int(box[1])), (int(box[2]),int(box[3])),(255,0,0),3)      
+            print(image_name)
+            image_name=os.path.basename(image_name)
+            cv2.imwrite(os.path.join('results',image_name),img)
+        else:
+            img=cv2.imread(image_name)
+            size=[]
+            size.append(img.shape[0])
+            size.append(img.shape[1])
+            #keep_inds=self.filter_boxes(text_recs)
+            text_recs=self.text_proposal_connector.get_text_lines(boxes,scores, size)
+            return text_recs
