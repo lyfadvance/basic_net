@@ -2,17 +2,19 @@
 import numpy as np
 import numpy.random as npr
 from util.gpu_nms import gpu_nms
-def TrainlabelToDatalabel_layer(rpn_cls_prob_reshape,rpn_bbox_pred,im_info):
+def TrainlabelToDatalabel_layer(rpn_cls_prob_reshape,rpn_bbox_pred,im_info):#rpn_cls_prob_reshape:[N,H,W*A,4]
+    #这里只有一个anchor,且代码与多个anchor的不兼容
     _anchors=np.array([[0,0,15,15]],np.int32)
     _num_anchors=_anchors.shape[0]
     height,width=rpn_cls_prob_reshape.shape[1:3]
+    N=rpn_cls_prob_reshape.shape[0]
     K=height*width
     A=_num_anchors
     im_info=im_info[0]
 
     #print("______________________",height,width)
-    scores = np.reshape(np.reshape(rpn_cls_prob_reshape, [1, height, width, _num_anchors, 2])[:,:,:,:,1],
-                        [1, height, width, _num_anchors])
+    scores = np.reshape(np.reshape(rpn_cls_prob_reshape, [N, height, width, _num_anchors, 2])[:,:,:,:,1],
+                        [N, height, width, _num_anchors])
     scores=np.reshape(scores,[height,width])
     print(scores)
 
@@ -28,10 +30,11 @@ def TrainlabelToDatalabel_layer(rpn_cls_prob_reshape,rpn_bbox_pred,im_info):
     all_anchors = (_anchors.reshape((1, A, 4)) +
                    shifts.reshape((1, K, 4)).transpose((1, 0, 2)))#相当于复制宽高的维度，然后相加
     all_anchors = all_anchors.reshape((K * A, 4))
+    
 #######################################################
     #print(all_anchors)
     bbox_deltas=rpn_bbox_pred
-    bbox_deltas=bbox_deltas.reshape((-1,4))
+    bbox_deltas=bbox_deltas.reshape((-1,4))#shape[N*H*W*A,4]
     scores=scores.reshape((-1,1))
     proposals=bbox_transform_inv(all_anchors,bbox_deltas)
     proposals=clip_boxes(proposals,im_info[:2])#将所有的proposal修建一下，超出图像范围的将会被修剪掉
