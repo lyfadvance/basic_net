@@ -1,7 +1,7 @@
 #encoding utf-8
 import numpy as np
 import numpy.random as npr
-from util.gpu_nms import gpu_nms
+#from util.gpu_nms import gpu_nms
 def TrainlabelToDatalabel_layer(rpn_cls_prob_reshape,rpn_bbox_pred,im_info):#rpn_cls_prob_reshape:[N,H,W*A,4]
     #这里只有一个anchor,且代码与多个anchor的不兼容
     _anchors=np.array([[0,0,15,15]],np.int32)
@@ -56,11 +56,14 @@ def TrainlabelToDatalabel_layer(rpn_cls_prob_reshape,rpn_bbox_pred,im_info):#rpn
 #]  
    # print(proposals)
     #构造nms的输入
+    '''
     nms_input=np.hstack((proposals,scores))
     print("-----------------------",nms_input.shape)
     keeps=gpu_nms(nms_input,0.6)
     print(keeps)
     return nms_input[keeps]
+    '''
+    return np.hstack((proposals,scores))
 #########################
 #    根据网络输出，计算box坐标
 #########################
@@ -68,7 +71,7 @@ def bbox_transform_inv(boxes, deltas):#boxes为10个anchor,deltas为边框回归
 
     boxes = boxes.astype(deltas.dtype, copy=False)
 
-    widths = boxes[:, 2] - boxes[:, 0] + 1.0
+    widths = boxes[:, 2] - boxes[:, 0] + 1.0#此时widths的shape形如[len=boxes_num],widths[:,np.newaxis]形如[len=boxes_num][1]
     heights = boxes[:, 3] - boxes[:, 1] + 1.0
     ctr_x = boxes[:, 0] + 0.5 * widths
     ctr_y = boxes[:, 1] + 0.5 * heights
@@ -78,11 +81,13 @@ def bbox_transform_inv(boxes, deltas):#boxes为10个anchor,deltas为边框回归
     dw = deltas[:, 2::4]
     dh = deltas[:, 3::4]
 
-    pred_ctr_x = ctr_x[:, np.newaxis]
+    #pred_ctr_x = ctr_x[:, np.newaxis]
+    pred_ctr_x= dx *widths[:,np.newaxis]+ctr_x[:,np.newaxis]
     pred_ctr_y = dy * heights[:, np.newaxis] + ctr_y[:, np.newaxis]
-    pred_w = widths[:, np.newaxis]
+    #pred_w = widths[:, np.newaxis]
+    pred_w=np.exp(dw)* widths[:,np.newaxis]
     pred_h = np.exp(dh) * heights[:, np.newaxis]
-
+    
     pred_boxes = np.zeros(deltas.shape, dtype=deltas.dtype)
     # x1
     pred_boxes[:, 0::4] = pred_ctr_x - 0.5 * pred_w

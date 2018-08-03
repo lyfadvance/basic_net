@@ -160,7 +160,7 @@ class Network(object):
                 factor=0.01, mode='FAN_AVG', uniform=False)
             init_biases = tf.constant_initializer(0.0)
             kernel = self.make_var('weights', [k_h, k_w, c_i, c_o], init_weights, trainable,
-                                   regularizer=self.l2_regularizer(cfg.TRAIN.WEIGHT_DECAY))
+                                   regularizer=self.l2_regularizer(WEIGHT_DECAY))
             if biased:
                 biases = self.make_var('biases', [c_o], init_biases, trainable)
                 conv = convolve(input, kernel)
@@ -263,18 +263,20 @@ class Network(object):
     def DatalabelToTrainlabel_layer(self,input,name):
         with tf.variable_scope(name) as scope:
             # 'rpn_cls_score', 'gt_boxes', 'gt_ishard', 'dontcare_areas', 'im_info'
-            rpn_labels,rpn_bbox_targets,rpn_bbox_inside_weights,rpn_bbox_outside_weights = \
+            print('_______________________data')
+            rpn_labels,rpn_edge_labels,rpn_bbox_targets,rpn_bbox_inside_weights,rpn_bbox_outside_weights = \
                 tf.py_func(DatalabelToTrainlabel_layer,
                            [input[0],input[1],input[2]],
-                           [tf.float32,tf.float32,tf.float32,tf.float32])
+                           [tf.float32,tf.float32,tf.float32,tf.float32,tf.float32])
 
             rpn_labels = tf.convert_to_tensor(tf.cast(rpn_labels,tf.int32), name = 'rpn_labels') # shape is (1 x H x W x A, 2)
+            rpn_edge_labels=tf.convert_to_tensor(tf.cast(rpn_edge_labels,tf.int32),name='rpn_edge_labels')
             rpn_bbox_targets = tf.convert_to_tensor(rpn_bbox_targets, name = 'rpn_bbox_targets') # shape is (1 x H x W x A, 4)
             rpn_bbox_inside_weights = tf.convert_to_tensor(rpn_bbox_inside_weights , name = 'rpn_bbox_inside_weights') # shape is (1 x H x W x A, 4)
             rpn_bbox_outside_weights = tf.convert_to_tensor(rpn_bbox_outside_weights , name = 'rpn_bbox_outside_weights') # shape is (1 x H x W x A, 4)
 
 
-            return rpn_labels, rpn_bbox_targets, rpn_bbox_inside_weights, rpn_bbox_outside_weights
+            return rpn_labels, rpn_edge_labels,rpn_bbox_targets, rpn_bbox_inside_weights, rpn_bbox_outside_weights
     @layer
     def TrainlabelToDatalabel_layer(self,input,name):
         with tf.variable_scope(name) as scope:
@@ -325,6 +327,10 @@ class Network(object):
     def dropout(self, input, keep_prob, name):
         return tf.nn.dropout(input, keep_prob, name=name)
     '''
+    @layer
+    def concat(self, inputs, axis, name):
+        return tf.concat(axis=axis, values=inputs, name=name)
+
     @layer
     def spatial_softmax(self, input, name):
         input_shape = tf.shape(input)

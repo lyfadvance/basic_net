@@ -16,7 +16,7 @@ from imdb import imdb
 import matplotlib.pyplot as plt
 ROOT_DIR=osp.abspath(osp.join(osp.dirname(__file__)))
 DATA_DIR=osp.abspath(osp.join(ROOT_DIR))
-BATCH_SIZE=10
+BATCH_SIZE=2
 class imdb_load(imdb):
     def __init__(self):
         imdb.__init__(self,'dataset')
@@ -161,8 +161,13 @@ class imdb_load(imdb):
             scale=np.array([width,height])/np.array([max_width,max_height])
             boxes=np.array(roidb[i]['boxes'])#形如[box_num,4]
             boxs_scale=self.box_scale(boxes,scale)
-            boxs_scale=boxs_scale.tolist()
-            gt_boxes_reshape.append(boxs_scale)
+            batch_index=np.full([boxs_scale.shape[0],1],i)
+            boxes_scale=np.hstack((boxs_scale,batch_index))
+            #boxs_scale=boxs_scale.tolist()
+            if i!=0:
+                gt_boxes_reshape=np.vstack((gt_boxes_reshape,boxes_scale))
+            else:
+                gt_boxes_reshape=boxes_scale
         blob=self.im_list_to_blob(processed_ims)
         ##blob中只有一个图像的数据
         return blob,gt_boxes_reshape#boxes_scale为list
@@ -190,17 +195,20 @@ if __name__ =='__main__':
         print("第",i,"轮",'---',blob['im_name'])
     blob=myimdb._get_next_minibatch()
     data=blob['data'][0]
-    print(data)
+    print(blob)
     #im=PIL.Image.fromarray(data)
     #im.save("out.jpg")
     cv2.imwrite("out.jpg",data)
     im=cv2.imread('out.jpg')
     boxes=blob['gt_boxes']
     #cv2.polylines(im,np.array(boxes),1,255)
-    boxes=(boxes)
-    for i in range(len(boxes[0])):
-        cv2.rectangle(im,(int(boxes[0][i][0]),int(boxes[0][i][1])),(int(boxes[0][i][2]),int(boxes[0][i][3])),(0,0,255),2)
+    
+    keep_inds=np.where(boxes[:,4].astype(int)==0)[0]
+    boxes=boxes[keep_inds,:]
+    print(boxes)
+    for i in range(boxes.shape[0]):
+        cv2.rectangle(im,(int(boxes[i][0]),int(boxes[i][1])),(int(boxes[i][2]),int(boxes[i][3])),(0,0,255),2)
     plt.imshow(im)
     plt.show()
-    print(blob)
+    #print(blob)
 

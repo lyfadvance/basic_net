@@ -1,5 +1,7 @@
 import numpy as np
 import numpy.random as npr
+from timer import Timer
+from cpython.bbox import bbox_overlaps
 DTYPE=np.float
 ##这个函数是用来将标注的label转化成训练时的label
 ##通过tf.py_func的形式进行调用
@@ -35,6 +37,7 @@ def bbox_overlaps(#水平的box
                     overlaps[n,k]=iw*ih/ua
     return overlaps
 '''
+'''
 def bbox_overlaps(#水平的box
      boxes,
      query_boxes):
@@ -59,17 +62,16 @@ def bbox_overlaps(#水平的box
                 )
                 if ih>0:
                     #有重叠区域
-                    '''
-                    ua=float(
-                        (boxes[n,2]-boxes[n,0]+1)*
-                        (boxes[n,3]-boxes[n,1]+1)+
-                        box_area-iw*ih
-                    )
-                    '''
-                    overlaps[n,k]=1
+                    
+
+                    overlaps[n,k]=(iw*ih)/((boxes[n,2]-boxes[n,0]+1)*(boxes[n,3]-boxes[n,1]+1))
     return overlaps
-def DatalabelToTrainlabel_layer(rpn_cls_score,gt_boxes,im_info):#,rpn_cls_score形如[N,H,W,2],gt_boxes为list,shape[batch_num,boxes_num,4]
+'''
+def DatalabelToTrainlabel_layer(rpn_cls_score,gt_boxes,im_info):#,rpn_cls_score形如[N,H,W,2],gt_boxes为array,shape[所有的boxes,5],第五个表示属于第几个batch
     #这里只有一个anchor,且代码与多个anchor的不兼容
+    #print('---------------------------get')
+    timer=Timer()
+    timer.tic()
     _anchors=np.array([[0,0,15,15]],np.float32)
     _num_anchors=_anchors.shape[0]
     #根据特征图构造所有的anchor
@@ -97,14 +99,22 @@ def DatalabelToTrainlabel_layer(rpn_cls_score,gt_boxes,im_info):#,rpn_cls_score�
     '''
 #######################################################
     #print(all_anchors)
-    
+     
+    #print('---------------------------get2')
     batch_labels=[]
+    batch_edge_labels=[]
     batch_bbox_inside_weights=[]
     batch_bbox_outside_weights=[]
     batch_bbox_targets=[]                   
     #all_anchors=[] #(K*A,4)
+    #print('---------------------------get4')
+    #print(N)
     for single in range(N):
-        batch_gt_boxes=gt_boxes[single]
+        #print('_______________________________',N)
+        #batch_gt_boxes=gt_boxes[single]
+        batch_keep_inds=np.where(gt_boxes[:,4].astype(int)==single)[0]
+        batch_gt_boxes=gt_boxes[batch_keep_inds,:]
+        #print(batch_gt_boxes)
         total_anchors=int(K*A)
         #仅保留那些还在图像内部的anchor，超出图像的都删掉
         _allowed_border=0
@@ -124,6 +134,9 @@ def DatalabelToTrainlabel_layer(rpn_cls_score,gt_boxes,im_info):#,rpn_cls_score�
         #计算label
         labels=np.empty((len(inds_inside),),dtype=np.float32)
         labels.fill(-1)
+        #计算edge_label
+        edge_labels=np.empty((len(inds_inside),),dtype=np.float32)
+        edge_labels.fill(-1)
         #print(gt_boxes[single]) 
         overlaps=bbox_overlaps(
             np.ascontiguousarray(anchors,dtype=np.float),
@@ -136,12 +149,15 @@ def DatalabelToTrainlabel_layer(rpn_cls_score,gt_boxes,im_info):#,rpn_cls_score�
         gt_argmax_overlaps=overlaps.argmax(axis=0)
         gt_max_overlaps=overlaps[gt_argmax_overlaps,np.arange(overlaps.shape[1])]
         #背景设置为0
-        labels[max_overlaps<0.3]=0 
+        labels[max_overlaps<0.1]=0 
         #每个gt_box所对应的overlap最大的anchor设置为1
         labels[gt_argmax_overlaps]=1
         #每个anchor的最大overlap大于0.7设置为1
-        labels[max_overlaps>0.7]=1
-
+        labels[max_overlaps>0.1]=1
+        
+        edge_labels[max_overlaps<0.99]=1
+        edge_labels[max_overlaps>0.99]=0
+        edge_labels[max_overlaps<0.1]=0
 #对所有的label进行采样
         #对正样本进行采样，使其个数在128个一下
         fg_inds=np.where(labels==1)[0]
@@ -149,16 +165,18 @@ def DatalabelToTrainlabel_layer(rpn_cls_score,gt_boxes,im_info):#,rpn_cls_score�
             disable_inds=npr.choice(
                 fg_inds,size=(len(fg_inds)-128),replace=False)
             labels[disable_inds]=-1
+            edge_labels[disable_inds]=-1
         #对负样本进行采样，使其个数在256个以下
         bg_inds=np.where(labels==0)[0]
         if len(bg_inds)>256:
             disable_inds=npr.choice(
                 bg_inds,size=(len(bg_inds)-256),replace=False)
             labels[disable_inds]=-1
+            edge_labels[disable_inds]=-1
         
         #计算权重
         bbox_inside_weights=np.zeros((len(inds_inside),4),dtype=np.float32)
-        bbox_inside_weights[labels==1,:]=np.array([0,1,0,1])
+        bbox_inside_weights[labels==1,:]=np.array([1,1,1,1])
         bbox_outside_weights=np.zeros((len(inds_inside),4),dtype=np.float32)
         positive_weights = np.ones((1, 4))
         negative_weights = np.zeros((1, 4))
@@ -194,6 +212,10 @@ def DatalabelToTrainlabel_layer(rpn_cls_score,gt_boxes,im_info):#,rpn_cls_score�
         #-------------------------加入batch
         batch_labels.append(labels)
         #rpn_labels=labels
+        ##计算edge label
+        edge_labels=_unmap(edge_labels,total_anchors,inds_inside,fill=-1)
+        edge_labels=edge_labels.reshape((height,width,A))
+        batch_edge_labels.append(edge_labels)
 
         bbox_targets=_unmap(bbox_targets,total_anchors,inds_inside,fill=0)
         #bbox_targets=bbox_targets.reshape((1,height,width,A*4))
@@ -201,11 +223,18 @@ def DatalabelToTrainlabel_layer(rpn_cls_score,gt_boxes,im_info):#,rpn_cls_score�
         #rpn_bbox_targets=bbox_targets
         #-------------------------加入batch
         batch_bbox_targets.append(bbox_targets)
+
+    #print('---------------------------get3')
     rpn_labels=np.array(batch_labels)
+    rpn_edge_labels=np.array(batch_edge_labels)
     rpn_bbox_targets=np.array(batch_bbox_targets)
     rpn_bbox_inside_weights=np.array(batch_bbox_inside_weights)
     rpn_bbox_outside_weights=np.array(batch_bbox_outside_weights)
-    return rpn_labels,rpn_bbox_targets,rpn_bbox_inside_weights,rpn_bbox_outside_weights
+    #print('___________________________________________get data')
+    #print(rpn_labels.shape,rpn_edge_labels.shape,rpn_bbox_targets.shape)
+    _diff_time=timer.toc(average=False)
+    #print(_diff_time)
+    return rpn_labels,rpn_edge_labels,rpn_bbox_targets,rpn_bbox_inside_weights,rpn_bbox_outside_weights
 #因为之前将一些anchor样本舍去了，这里重新构建所有的anchor,只不过舍去的anchor设置为不感兴趣,dont care
 def _unmap(data,count,inds,fill=0):#data指label的数据，count:所有的anchor的数量,inds:保留的anchor的坐标
     #对label进行扩充
@@ -315,12 +344,21 @@ def clip_boxes(boxes, im_shape):
     boxes[:, 3::4] = np.maximum(np.minimum(boxes[:, 3::4], im_shape[0] - 1), 0)
     return boxes
 if __name__=='__main__':
+    timer=Timer()
+    timer.tic()
     rpn_cls_score=np.zeros((3,50,45,3))
     im_info=np.array([[800,720],[800,720],[800,720]])
-    gt_boxes=np.array([[[16,0,31,15]],[[16,0,31,15]],[[16,0,31,15]]])
-    labels,_,_,_=DatalabelToTrainlabel_layer(rpn_cls_score,gt_boxes,im_info)
+    temp=np.array([[16,0,31,15,0],[16,0,31,15,1],[16,0,31,15,2]])
+    temp=np.tile(temp,[20,1])
+    print(temp)
+    #print(temp)
+    #gt_boxes=np.array([[[16,0,31,15]],[[16,0,31,15]],[[16,0,31,15]]])
+    gt_boxes=temp
+    labels,_,_,_,_=DatalabelToTrainlabel_layer(rpn_cls_score,gt_boxes,im_info)
+    _diff_time=timer.toc(average=False)
     print(labels.shape)
-    print(labels)
+    #print(labels)
+    print(_diff_time)
     '''
     print(labels.reshape(3,50,45))
     labels=labels.reshape(3,50,45)
