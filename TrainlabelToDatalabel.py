@@ -56,14 +56,12 @@ def TrainlabelToDatalabel_layer(rpn_cls_prob_reshape,rpn_bbox_pred,im_info):#rpn
 #]  
    # print(proposals)
     #构造nms的输入
-    '''
     nms_input=np.hstack((proposals,scores))
     print("-----------------------",nms_input.shape)
     keeps=gpu_nms(nms_input,0.6)
     print(keeps)
     return nms_input[keeps]
-    '''
-    return np.hstack((proposals,scores))
+    #return np.hstack((proposals,scores))
 #########################
 #    根据网络输出，计算box坐标
 #########################
