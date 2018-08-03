@@ -1,7 +1,7 @@
 #encoding utf-8
 import numpy as np
 import numpy.random as npr
-#from util.gpu_nms import gpu_nms
+from util.gpu_nms import gpu_nms
 def TrainlabelToDatalabel_layer(rpn_cls_prob_reshape,rpn_bbox_pred,im_info):#rpn_cls_prob_reshape:[N,H,W*A,4]
     #这里只有一个anchor,且代码与多个anchor的不兼容
     _anchors=np.array([[0,0,15,15]],np.int32)

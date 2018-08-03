@@ -82,8 +82,8 @@ class VGGnet_test(Network):
         # generating training labels on the fly
         # output: rpn_labels(HxWxA, 2) rpn_bbox_targets(HxWxA, 4) rpn_bbox_inside_weights rpn_bbox_outside_weights
         # 给每个anchor上标签，并计算真值（也是delta的形式），以及内部权重和外部权重
-        (self.feed('rpn_cls_score', 'gt_boxes', 'im_info')
-             .DatalabelToTrainlabel_layer(name = 'rpn-data'))
+        #(self.feed('rpn_cls_score', 'gt_boxes', 'im_info')
+         #    .DatalabelToTrainlabel_layer(name = 'rpn-data'))
 
 
         # shape is (1, H, W, Ax2) -> (1, H, WxA, 2)
@@ -142,7 +142,7 @@ class VGGnet_test(Network):
             boxes=Draw.draw_boxes(im_name,tps,1,scores,draw=False)
             basename=os.path.basename(im_name)
             with open('results/'+'res'+'_'+basename+'.txt','w') as f:
-                fo j in range(len(boxes)):
+                for j in range(len(boxes)):
                     f.write(str(boxes[j][0]))
                     f.write(',')
                     f.write(str(boxes[j][1]))
