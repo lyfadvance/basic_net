@@ -55,25 +55,53 @@ class VGGnet_test(Network):
              .conv(3, 3, 512, 1, 1, name='conv5_1')
              .conv(3, 3, 512, 1, 1, name='conv5_2')
              .conv(3, 3, 512, 1, 1, name='conv5_3'))
-   
+
+
         #========= RPN ============
+        
         (self.feed('conv5_3')
              .conv(3,3,512,1,1,name='rpn_conv/3x3'))
 
- #(self.feed('rpn_conv/3x3').Bilstm(512,128,512,name='lstm_o'))
-        (self.feed('rpn_conv/3x3').regress(512,1 * 2, name='rpn_cls_score'))
-        (self.feed('rpn_conv/3x3').regress(512,1 * 4, name='rpn_bbox_pred'))
+        #(self.feed('rpn_conv/3x3').Bilstm(512,128,512,name='lstm_o'))
+        (self.feed('rpn_conv/3x3').regress(512,1 * 2, name='rpn_cls_score')
+                                  .conloss_conv(3,3,2,2,2,name='conloss'))
+        (self.feed('rpn_conv/3x3').regress(512,1*2,name='rpn_edge_score'))
+        (self.feed('rpn_conv/3x3').regress(512,1 * 4, name='rpn_bbox_pred')
+                                  .regconloss_conv(3,3,2,2,2,name='regconloss'))
         #(self.feed('lstm_o').lstm_fc(512,len(anchor_scales) * 10 * 2,name='rpn_cls_score'))
+        (self.feed('rpn_cls_score','rpn_edge_score','rpn_bbox_pred')
+             .concat(axis=3,name='myconcat'))
+        (self.feed('myconcat')
+             .conv(3,3,1*2,1,1,relu=False,name='rpn_cls_score2')
+             .conloss_conv(3,3,2,2,2,name='conloss2')
+             )
+        (self.feed('myconcat')
+            .conv(3,3,1*4,1,1,relu=False,name='rpn_bbox_pred2')
+            .regconloss_conv(3,3,2,2,2,name='regconloss2'))
+
+        # generating training labels on the fly
+        # output: rpn_labels(HxWxA, 2) rpn_bbox_targets(HxWxA, 4) rpn_bbox_inside_weights rpn_bbox_outside_weights
+        # 给每个anchor上标签，并计算真值（也是delta的形式），以及内部权重和外部权重
+        (self.feed('rpn_cls_score', 'gt_boxes', 'im_info')
+             .DatalabelToTrainlabel_layer(name = 'rpn-data'))
+
 
         # shape is (1, H, W, Ax2) -> (1, H, WxA, 2)
         # 给之前得到的score进行softmax，得到0-1之间的得分
         (self.feed('rpn_cls_score')
-             .spatial_reshape_layer(2, name = 'rpn_cls_score_reshape')
-             .spatial_softmax(name='rpn_cls_prob')
-             )
-        (self.feed('rpn_cls_prob')
+             .spatial_reshape_layer(2, name = 'rpn_cls_score_reshape')#[1,H,W*A,4]
+             .spatial_softmax(name='rpn_cls_prob'))
+        (self.feed('rpn_edge_score')
+             .spatial_reshape_layer(2,name='rpn_edge_score_reshape')
+             .spatial_softmax(name='rpn_edge_prob'))
+
+        (self.feed('rpn_cls_score2')
+             .spatial_reshape_layer(2, name = 'rpn_cls_score_reshape2')#[1,H,W*A,4]
+             .spatial_softmax(name='rpn_edge_prob2'))
+
+        (self.feed('rpn_edge_prob2')
             .spatial_reshape_layer(1*2,name='rpn_cls_prob_reshape'))
-        (self.feed('rpn_cls_prob_reshape','rpn_bbox_pred','im_info')
+        (self.feed('rpn_cls_prob_reshape','rpn_bbox_pred2','im_info')
             .TrainlabelToDatalabel_layer(name='rois'))
 
 #################################################

@@ -94,7 +94,7 @@ class VGGnet_train(Network):
 
         (self.feed('rpn_cls_score2')
              .spatial_reshape_layer(2, name = 'rpn_cls_score_reshape2')#[1,H,W*A,4]
-             .spatial_softmax(name='rpn_edge_prob2'))
+             .spatial_softmax(name='rpn_cls_prob2'))
 ###################################################
 #计算loss
 ###################################################
